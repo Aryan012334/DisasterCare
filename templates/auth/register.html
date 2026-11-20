@@ -1,0 +1,90 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>CRDR - Sign Up</title>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+    <link href="{% static 'css/rdms.css' %}" rel="stylesheet">
+</head>
+<body>
+    {% include "includes/messages.html" %}
+    <div class="container-fluid position-relative d-flex p-0">
+        <div class="container-fluid">
+            <div class="row h-100 align-items-center justify-content-center" style="min-height: 100vh;">
+                <div class="col-12 col-sm-8 col-md-7 col-lg-6 col-xl-5">
+                    <div class="bg-secondary rounded p-4 p-sm-5 my-4 mx-3">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h3 class="text-primary">Disaster Management</h3>
+                            <h3>Sign Up</h3>
+                        </div>
+                        <form method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <div class="row g-3 mb-1">
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="id_first_name" name="first_name" placeholder="First Name" value="{{ form.first_name.value|default:'' }}" pattern="[^0-9]*" title="First name cannot contain numbers." required>
+                                        <label for="id_first_name">First Name</label>
+                                    </div>
+                                    {% for error in form.first_name.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="id_last_name" name="last_name" placeholder="Last Name" value="{{ form.last_name.value|default:'' }}" pattern="[^0-9]*" title="Last name cannot contain numbers." required>
+                                        <label for="id_last_name">Last Name</label>
+                                    </div>
+                                    {% for error in form.last_name.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                                </div>
+                            </div>
+                            <div class="form-floating mb-3">
+                                <input type="text" class="form-control" id="id_username" name="username" placeholder="Username" value="{{ form.username.value|default:'' }}" required>
+                                <label for="id_username">Username</label>
+                                {% for error in form.username.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <div class="form-floating mb-3">
+                                <input type="email" class="form-control" id="id_email" name="email" placeholder="Email" value="{{ form.email.value|default:'' }}" required>
+                                <label for="id_email">Email</label>
+                                {% for error in form.email.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="id_profile_photo">Profile Photo</label>
+                                <input type="file" class="form-control" id="id_profile_photo" name="profile_photo" accept="image/*">
+                                {% for error in form.profile_photo.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="id_role">Role</label>
+                                <select class="form-select" id="id_role" name="role" {% if preset_role %}readonly disabled{% endif %} required>
+                                    <option value="">Select account type</option>
+                                    <option value="reporter" {% if form.role.value == 'reporter' %}selected{% endif %}>I am a Reporter</option>
+                                    <option value="responder" {% if form.role.value == 'responder' %}selected{% endif %}>I am a Responder</option>
+                                </select>
+                                {% if preset_role %}
+                                <input type="hidden" name="role" value="{{ preset_role }}">
+                                {% endif %}
+                                {% for error in form.role.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <div class="form-floating mb-3">
+                                <input type="password" class="form-control" id="id_password1" name="password1" placeholder="Password" required>
+                                <label for="id_password1">Password</label>
+                                {% for error in form.password1.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <div class="form-floating mb-4">
+                                <input type="password" class="form-control" id="id_password2" name="password2" placeholder="Confirm Password" required>
+                                <label for="id_password2">Confirm Password</label>
+                                {% for error in form.password2.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <button type="submit" class="btn btn-primary py-3 w-100 mb-4">Create Account</button>
+                            <p class="text-center mb-0">Reporter accounts can sign in right away.</p>
+                            <p class="text-center mb-0">Responder accounts need admin approval before sign in.</p>
+                            <p class="text-center mb-0">Already have an Account? <a href="{% url 'disaster_management:login' %}">Sign In</a></p>
+                            {% for error in form.non_field_errors %}<p class="text-danger mt-2 mb-0">{{ error }}</p>{% endfor %}
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

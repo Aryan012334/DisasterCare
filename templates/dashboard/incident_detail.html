@@ -1,0 +1,861 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Incident #{{ incident.id }}{% endblock %}
+
+{% block extra_head %}
+<link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+/>
+<style>
+    #incident-detail-map { height: 360px; border-radius: 8px; }
+    .workflow-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+    }
+    .workflow-step {
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.02);
+    }
+    .workflow-step-current {
+        border-color: rgba(13, 110, 253, 0.9);
+        box-shadow: inset 0 0 0 1px rgba(13, 110, 253, 0.25);
+    }
+    .workflow-step-complete {
+        border-color: rgba(25, 135, 84, 0.9);
+        box-shadow: inset 0 0 0 1px rgba(25, 135, 84, 0.2);
+    }
+    .workflow-step-waiting {
+        border-color: rgba(255, 193, 7, 0.7);
+        box-shadow: inset 0 0 0 1px rgba(255, 193, 7, 0.2);
+    }
+    .workflow-action-btn small {
+        opacity: 0.85;
+        font-size: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+    <nav class="navbar bg-secondary navbar-dark">
+        <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+            <h3 class="text-primary"><i class="fa fa-user-edit me-2"></i>CRDR</h3>
+        </a>
+        {% include "includes/sidebar_links.html" with active_menu="incident_list" %}
+    </nav>
+</div>
+
+<div class="content">
+    <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+        <a href="#" class="sidebar-toggler flex-shrink-0"><i class="fa fa-bars"></i></a>
+        <div class="navbar-nav align-items-center ms-auto">
+            {% include "includes/topbar_notifications.html" %}
+            <div class="nav-item dropdown">
+                <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                    <img class="rounded-circle me-lg-2" src="{% if request.user.profile.profile_photo %}{{ request.user.profile.profile_photo.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
+                    <span class="d-none d-lg-inline-flex">{{ request.user.get_full_name|default:request.user.username }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0">
+                    <a href="{% url 'disaster_management:profile_edit' %}" class="dropdown-item">My Profile</a>
+                    <form method="post" action="{% url 'disaster_management:logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item">Log Out</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">#{{ incident.id }} {{ incident.title }}</h5>
+            <div class="d-flex gap-2 align-items-center">
+                {% if incident.report_mode == 'emergency' %}
+                <span class="badge bg-danger">Emergency</span>
+                {% else %}
+                <span class="badge bg-info text-dark">Normal</span>
+                {% endif %}
+                <span class="badge bg-primary">{{ incident.get_status_display }}</span>
+            </div>
+        </div>
+        {% if can_accept_assignment %}
+        <div class="mb-3">
+            <form method="post" action="{% url 'disaster_management:assignment_accept' incident.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success btn-sm">Accept Task</button>
+            </form>
+            <form method="post" action="{% url 'disaster_management:assignment_decline' incident.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-warning btn-sm">Decline Task</button>
+            </form>
+            {% if incident.report_mode == 'emergency' %}
+            <p class="mt-2 mb-0 small text-warning">
+                Emergency task can be accepted directly by responder. No admin confirmation is required.
+            </p>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% if request.user.is_superuser and incident.status == 'pending' %}
+        <div class="mb-3">
+            <form method="post" action="{% url 'disaster_management:incident_verify' incident.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success btn-sm">Approve</button>
+            </form>
+            <form method="post" action="{% url 'disaster_management:incident_reject' incident.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+            </form>
+        </div>
+        {% endif %}
+        {% if request.user.is_superuser and incident.status != 'closed' %}
+        <div class="mb-3 p-3 border border-secondary rounded">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h6 class="mb-1">Admin Closure Gate</h6>
+                    <p class="small mb-0 text-light">Admin can force close in any state. Readiness checks below show whether closure is fully validated.</p>
+                </div>
+                <form method="post" action="{% url 'disaster_management:incident_close' incident.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm {% if closure_ready %}btn-primary{% else %}btn-danger{% endif %}">
+                        {% if closure_ready %}Close Task (Admin){% else %}Force Close (Admin){% endif %}
+                    </button>
+                </form>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                {% for req_key, req_label, req_done in closure_requirements %}
+                <span class="badge {% if req_done %}bg-success{% else %}bg-dark border border-secondary{% endif %}">
+                    {% if req_done %}Done{% else %}Pending{% endif %}: {{ req_label }}
+                </span>
+                {% endfor %}
+            </div>
+            {% if not closure_ready and closure_missing_requirements %}
+            <p class="small text-warning mt-2 mb-0">Pending: {{ closure_missing_requirements|join:", " }}.</p>
+            {% endif %}
+        </div>
+        {% elif final_review and final_review.recommend_close and incident.status != 'closed' %}
+        <div class="mb-3 alert alert-info py-2">
+            Closure recommended by responder. Waiting for admin closure action.
+        </div>
+        {% endif %}
+        <div class="row g-3">
+            <div class="col-md-3"><strong>Type:</strong> {{ incident.get_incident_type_display }}</div>
+            <div class="col-md-3"><strong>Severity:</strong> {{ incident.get_severity_display }}</div>
+            <div class="col-md-3"><strong>Reporter:</strong> {{ incident.reporter.username|default:"-" }}</div>
+            <div class="col-md-3"><strong>People Affected:</strong> {{ incident.people_affected }}</div>
+            <div class="col-md-3"><strong>Report Type:</strong> {{ incident.get_report_mode_display }}</div>
+            <div class="col-md-3"><strong>Affected Radius:</strong> {{ incident.affected_radius_km }} km</div>
+            <div class="col-md-6"><strong>Location:</strong> {{ incident.latitude }}, {{ incident.longitude }}</div>
+            <div class="col-md-6"><strong>Address:</strong> {{ incident.address|default:"-" }}</div>
+            <div class="col-md-12"><strong>Description:</strong> {{ incident.description }}</div>
+            <div class="col-md-4"><strong>Confidence Score:</strong> {{ incident.ai_confidence }}</div>
+            <div class="col-md-4"><strong>Risk Score:</strong> {{ incident.ai_risk_score }}</div>
+            <div class="col-md-4"><strong>Duplicate Suspected:</strong> {{ incident.is_duplicate_suspected|yesno:"Yes,No" }}</div>
+        </div>
+    </div>
+
+    {% if incident.status == 'stabilized' or incident.status == 'escalated' or incident.status == 'closed' or final_review %}
+    <div class="bg-secondary rounded p-4 mb-4">
+        <h6 class="mb-3">Final Field Review</h6>
+        {% if can_submit_final_review and final_review_form %}
+        <form method="post" enctype="multipart/form-data" action="{% url 'disaster_management:incident_final_review_submit' incident.id %}" id="final-review-form">
+            {% csrf_token %}
+            <div class="row g-3">
+                <div class="col-md-12">
+                    <label class="form-label">Summary</label>
+                    {{ final_review_form.summary }}
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">Verification Notes</label>
+                    {{ final_review_form.verification_notes }}
+                </div>
+                <div class="col-md-12">
+                    {% if incident.status == 'stabilized' %}
+                    <div class="form-check">
+                        {{ final_review_form.recommend_close }}
+                        <label class="form-check-label ms-1">Recommend close</label>
+                    </div>
+                    {% else %}
+                    <p class="small text-warning mb-0">
+                        Closure recommendation is available only when incident status is Stabilized.
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">Final Review Attachments</label>
+                    {{ final_review_form.attachments }}
+                </div>
+            </div>
+            <button type="submit" class="btn btn-success mt-3">Submit Final Review</button>
+        </form>
+        {% if final_review %}
+        <hr>
+        {% else %}
+        <p class="mt-2 mb-0 small text-light">Submitted final review details will appear below.</p>
+        {% endif %}
+        {% endif %}
+
+        {% if final_review %}
+        <div class="mb-3">
+            <p class="mb-1"><strong>Responder:</strong> {{ final_review.responder.username }}</p>
+            <p class="mb-1"><strong>Summary:</strong> {{ final_review.summary }}</p>
+            <p class="mb-1"><strong>Verification Notes:</strong> {{ final_review.verification_notes|default:"-" }}</p>
+            <p class="mb-1"><strong>Recommend Close:</strong> {{ final_review.recommend_close|yesno:"Yes,No" }}</p>
+            <p class="mb-0"><strong>Points Awarded:</strong> {{ final_review.points_awarded|yesno:"Yes,No" }}</p>
+        </div>
+        <div class="row g-2">
+            {% for media in final_review_media %}
+            <div class="col-md-3">
+                <a href="{{ media.file.url }}" target="_blank" class="btn btn-outline-primary w-100">Final Proof {{ forloop.counter }}</a>
+            </div>
+            {% empty %}
+            <div class="col-12"><p class="mb-0">No final review media uploaded.</p></div>
+            {% endfor %}
+        </div>
+        {% elif not can_submit_final_review %}
+        <p class="mb-0">Final review not submitted yet.</p>
+        {% if final_review_ready_reason %}
+        <p class="mb-0 mt-2 small text-warning">{{ final_review_ready_reason }}</p>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if show_responder_status_update and can_update %}
+    <div class="bg-secondary rounded p-4 mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h6 class="mb-0">Responder Field Status Update</h6>
+            <span class="badge bg-primary">Current: {{ incident.get_status_display }}</span>
+        </div>
+        <div class="alert alert-info py-2 mb-3">
+            Workflow: <strong>On Scene &rarr; Stabilized/Escalated &rarr; Final Review</strong>. Admin closes only after stabilization and closure recommendation.
+            <small class="d-block mt-1">Escalated incidents can be moved back to Stabilized once situation control improves.</small>
+            <small class="d-block mt-1">On Scene requires live location verification within {{ on_scene_max_distance_km|floatformat:1 }} km.</small>
+        </div>
+        <div id="on-scene-error-box" class="alert alert-danger py-2 mb-3 d-none" role="alert"></div>
+        <div class="workflow-grid mb-3">
+            {% for step in workflow_steps %}
+            <div class="workflow-step {% if step.is_current %}workflow-step-current{% elif step.is_completed %}workflow-step-complete{% elif step.is_available %}workflow-step-waiting{% endif %}">
+                <div class="fw-semibold">{{ step.label }}</div>
+                <small class="text-light">
+                    {% if step.is_current %}
+                    Current stage
+                    {% elif step.is_completed %}
+                    Completed
+                    {% elif step.is_available %}
+                    Next available action
+                    {% else %}
+                    Locked until previous step
+                    {% endif %}
+                </small>
+            </div>
+            {% endfor %}
+        </div>
+        <form method="post" action="{% url 'disaster_management:incident_status_update' incident.id %}" id="incident-status-update-form">
+            {% csrf_token %}
+            <input type="hidden" name="on_scene_latitude" id="id_on_scene_latitude">
+            <input type="hidden" name="on_scene_longitude" id="id_on_scene_longitude">
+            <div class="row g-2 mb-3">
+                {% for step in available_workflow_steps %}
+                <div class="col-md-4">
+                <button
+                    type="submit"
+                    name="status"
+                    value="{{ step.value }}"
+                    class="btn workflow-action-btn w-100 btn-primary"
+                    data-requires-note="{% if step.value == 'stabilized' or step.value == 'escalated' %}1{% else %}0{% endif %}"
+                    data-requires-location="{% if step.value == 'on_scene' %}1{% else %}0{% endif %}"
+                >
+                    {{ step.label }}
+                    <small class="d-block">
+                        Set as next status
+                    </small>
+                </button>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <p class="mb-0 small text-light">No status action is available at this stage.</p>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="row g-3">
+                <div class="col-md-12">
+                    <label class="form-label">Update Note</label>
+                    {{ update_form.note }}
+                    <small id="status-note-help" class="text-light">Note is required (minimum 8 characters) for Stabilized and Escalated.</small>
+                    <small id="on-scene-location-help" class="text-light d-block mt-1">On Scene auto-captures live GPS before submit.</small>
+                </div>
+            </div>
+        </form>
+        <p class="mt-2 mb-0 small text-light">Use available action buttons to move workflow forward.</p>
+    </div>
+    {% elif show_responder_status_update and request.user.profile.role == 'responder' and stale_update_block_reason %}
+    <div class="bg-secondary rounded p-4 mb-4">
+        <h6 class="mb-2">Responder Field Status Update</h6>
+        <p class="mb-0 text-warning">{{ stale_update_block_reason }}</p>
+    </div>
+    {% elif show_responder_status_update and request.user.profile.role == 'responder' and open_status_enquiry %}
+    <div class="bg-secondary rounded p-4 mb-4">
+        <h6 class="mb-2">Responder Field Status Update</h6>
+        <p class="mb-0 text-warning">Status updates are paused while admin enquiry is pending. Submit enquiry response first.</p>
+    </div>
+    {% endif %}
+
+    {% if incident.status == 'on_scene' %}
+    <div class="bg-secondary rounded p-4 mb-4">
+        <h6 class="mb-3">Fake Incident Review</h6>
+        {% if can_submit_fake_report and fake_report_form %}
+        <form method="post" enctype="multipart/form-data" action="{% url 'disaster_management:incident_fake_report_submit' incident.id %}">
+            {% csrf_token %}
+            <label class="form-label">Reason</label>
+            {{ fake_report_form.reason }}
+            <label class="form-label mt-3">Proof Attachments (required)</label>
+            {{ fake_report_form.attachments }}
+            <button type="submit" class="btn btn-warning mt-3">Report as Fake</button>
+        </form>
+        <p class="small text-light mt-2 mb-0">
+            Submitting fake report releases your active commitment for this incident while admin verification is pending.
+        </p>
+        {% elif my_fake_report %}
+        <p class="mb-0">You already submitted a fake incident report for this task.</p>
+        {% if my_fake_report.media.all %}
+        <div class="row g-2 mt-3">
+            {% for media in my_fake_report.media.all %}
+            <div class="col-md-3">
+                <a href="{{ media.file.url }}" target="_blank" class="btn btn-outline-warning w-100">My Proof {{ forloop.counter }}</a>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% else %}
+        <p class="mb-0">Only accepted responder can submit fake incident report.</p>
+        {% endif %}
+
+        {% if request.user.is_superuser %}
+        <hr>
+        <p class="mb-2"><strong>Admin Review Queue for This Incident</strong></p>
+        <div class="table-responsive">
+            <table class="table text-start align-middle table-bordered table-hover mb-0">
+                <thead><tr class="text-white"><th>Responder</th><th>Reason</th><th>Proofs</th><th>Status</th><th>Admin Action</th><th>Reviewed By</th></tr></thead>
+                <tbody>
+                    {% for row in fake_reports %}
+                    <tr>
+                        <td>{{ row.responder.username }}</td>
+                        <td>{{ row.reason }}</td>
+                        <td>
+                            {% for media in row.media.all %}
+                            <a href="{{ media.file.url }}" target="_blank" class="btn btn-sm btn-outline-warning mb-1">Proof {{ forloop.counter }}</a>
+                            {% empty %}
+                            <span>-</span>
+                            {% endfor %}
+                        </td>
+                        <td>{{ row.get_review_status_display }}</td>
+                        <td>{{ row.get_admin_action_display }}</td>
+                        <td>{{ row.reviewed_by.username|default:"-" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center">No fake incident reports for this incident.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2">
+            <a href="{% url 'disaster_management:fake_reports_review' %}" class="btn btn-sm btn-outline-light">Open Fake Verify Queue</a>
+            <a href="{% url 'disaster_management:fake_reports_history' %}" class="btn btn-sm btn-outline-secondary">Open Fake Verify History</a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="bg-secondary rounded p-4 mb-4">
+        <h6 class="mb-3">Consequence Warnings</h6>
+        {% if consequence_items %}
+        <ul class="mb-0">
+            {% for line in consequence_items %}
+            <li>{{ line }}</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="mb-0">No consequence warning generated yet.</p>
+        {% endif %}
+    </div>
+
+    <div class="bg-secondary rounded p-4 mb-4">
+        <h6 class="mb-3">Risk Forecast Timeline</h6>
+        <div class="table-responsive">
+            <table class="table text-start align-middle table-bordered table-hover mb-0">
+                <thead><tr class="text-white"><th>Horizon</th><th>Forecast Time</th><th>Risk Score</th><th>Risk Level</th><th>Advisory</th></tr></thead>
+                <tbody>
+                    {% for row in risk_predictions %}
+                    <tr>
+                        <td>+{{ row.horizon_hours }}h</td>
+                        <td>{{ row.forecast_for }}</td>
+                        <td>{{ row.risk_score }}</td>
+                        <td>{{ row.get_risk_level_display }}</td>
+                        <td>{{ row.advisory }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center">No risk forecast available yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="bg-secondary rounded p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Affected Area Map</h6>
+            <a href="{{ navigate_url }}" target="_blank" class="btn btn-primary btn-sm">Start Navigate</a>
+        </div>
+        <div id="incident-detail-map"></div>
+    </div>
+
+    <div class="bg-secondary rounded p-4 mb-4">
+        <h6 class="mb-3">Responder Dispatch</h6>
+        <div class="table-responsive">
+            <table class="table text-start align-middle table-bordered table-hover mb-0">
+                <thead><tr class="text-white"><th>Responder</th><th>Distance (km)</th><th>Status</th><th>Accepted</th></tr></thead>
+                <tbody>
+                    {% for row in assignments %}
+                    <tr>
+                        <td>{{ row.responder.username }}</td>
+                        <td>{{ row.distance_km|floatformat:2 }}</td>
+                        <td>{{ row.get_status_display }}</td>
+                        <td>{{ row.accepted_at|default:"-" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-center">No nearby responder alerts yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if can_accept_assignment %}
+        <p class="mt-3 mb-0 small text-light">
+            Task action buttons are shown at the top of this page for quick access.
+        </p>
+        {% elif my_assignment and my_assignment.status == 'notified' %}
+        {% if commitment_block_reason %}
+        <p class="mt-3 mb-0 small text-warning">
+            {{ commitment_block_reason }}
+        </p>
+        {% else %}
+        <p class="mt-3 mb-0 small text-warning">
+            {{ responder_ready_reason|default:"Enable availability and update your location to accept this task." }}
+        </p>
+        {% endif %}
+        {% elif my_assignment and my_assignment.status == 'declined' %}
+        <p class="mt-3 mb-0 small text-warning">
+            You declined this assignment. Accept/decline actions are disabled for this incident.
+        </p>
+        {% elif request.user.profile.role == 'responder' %}
+        <p class="mt-3 mb-0 small text-light">
+            Accept option appears only when this incident is assigned to you as a nearby responder.
+        </p>
+        {% endif %}
+    </div>
+
+    {% if request.user.is_superuser or request.user.profile.role == 'responder' or latest_status_enquiry or is_stale_for_enquiry %}
+    <div class="bg-secondary rounded p-4 mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h6 class="mb-0">Status Enquiry Workflow</h6>
+            {% if open_status_enquiry %}
+            <span class="badge bg-warning text-dark">Pending Responder Reply</span>
+            {% elif latest_status_enquiry and latest_status_enquiry.status == 'responded' %}
+            <span class="badge bg-info text-dark">Awaiting Admin Finalization</span>
+            {% elif latest_status_enquiry and latest_status_enquiry.status == 'finalized' %}
+            <span class="badge bg-success">Finalized</span>
+            {% elif is_stale_for_enquiry %}
+            <span class="badge bg-dark border border-warning">Stale ({{ stale_days_without_update }} day{{ stale_days_without_update|pluralize }})</span>
+            {% else %}
+            <span class="badge bg-dark border border-secondary">No Open Enquiry</span>
+            {% endif %}
+        </div>
+        <p class="small text-light mb-3">
+            Last incident update: {{ last_update_at|date:"Y-m-d H:i" }}.
+            {% if is_stale_for_enquiry %}
+            This incident crossed {{ stale_status_enquiry_days }} day stale threshold.
+            {% else %}
+            Stale threshold: {{ stale_status_enquiry_days }} day(s) without updates.
+            {% endif %}
+        </p>
+
+        {% if request.user.is_superuser %}
+            {% if can_admin_request_status_enquiry and status_enquiry_request_form %}
+            <form method="post" action="{% url 'disaster_management:incident_status_enquiry_request' incident.id %}" class="row g-3">
+                {% csrf_token %}
+                <div class="col-md-9">
+                    <label class="form-label">Enquiry Note (Optional)</label>
+                    {{ status_enquiry_request_form.request_note }}
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-warning w-100">Request Responder Status Update</button>
+                </div>
+            </form>
+            {% elif open_status_enquiry %}
+            <div class="p-3 border border-secondary rounded mb-3">
+                <p class="mb-1"><strong>Requested:</strong> {{ open_status_enquiry.requested_at|date:"Y-m-d H:i" }} by {{ open_status_enquiry.requested_by.username|default:"Admin" }}</p>
+                <p class="mb-1"><strong>Target Responder:</strong> {{ open_status_enquiry.target_responder.username|default:"-" }}</p>
+                <p class="mb-0"><strong>Request Note:</strong> {{ open_status_enquiry.request_note|default:"-" }}</p>
+            </div>
+            {% if enquiry_is_overdue %}
+            <div class="alert alert-danger py-2 mb-3">
+                No responder response for more than {{ enquiry_response_overdue_hours }} hours. Admin can take action.
+            </div>
+            {% if can_admin_take_overdue_action and status_enquiry_overdue_action_form %}
+            <form method="post" action="{% url 'disaster_management:incident_status_enquiry_overdue_action' incident.id %}" class="row g-2 mb-2">
+                {% csrf_token %}
+                <div class="col-md-3">
+                    <label class="form-label">Action</label>
+                    {{ status_enquiry_overdue_action_form.action }}
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label">Admin Note</label>
+                    {{ status_enquiry_overdue_action_form.admin_note }}
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-danger w-100">Apply Action</button>
+                </div>
+            </form>
+            {% elif open_status_enquiry.overdue_action != 'none' %}
+            <p class="small text-warning mb-0">
+                Overdue action already applied: {{ open_status_enquiry.get_overdue_action_display }} by {{ open_status_enquiry.overdue_action_by.username|default:"Admin" }}.
+            </p>
+            {% endif %}
+            {% endif %}
+            {% elif can_admin_finalize_status_enquiry and latest_status_enquiry and status_enquiry_finalize_form %}
+            <div class="p-3 border border-secondary rounded mb-3">
+                <p class="mb-1"><strong>Responder Reply:</strong> {{ latest_status_enquiry.responded_by.username|default:"-" }} at {{ latest_status_enquiry.responded_at|date:"Y-m-d H:i" }}</p>
+                <p class="mb-1"><strong>Current Status:</strong> {{ latest_status_enquiry.get_responder_current_status_display }}</p>
+                <p class="mb-1"><strong>Recommend Finalize:</strong> {{ latest_status_enquiry.responder_recommend_finalize|yesno:"Yes,No" }}</p>
+                <p class="mb-0"><strong>Responder Note:</strong> {{ latest_status_enquiry.responder_note|default:"-" }}</p>
+            </div>
+            <form method="post" action="{% url 'disaster_management:incident_status_enquiry_finalize' incident.id %}" class="row g-2">
+                {% csrf_token %}
+                <div class="col-md-8">
+                    <label class="form-label">Final Admin Note</label>
+                    {{ status_enquiry_finalize_form.admin_note }}
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        {{ status_enquiry_finalize_form.close_incident }}
+                        <label class="form-check-label ms-1">Ready To Close</label>
+                    </div>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-success w-100">Finalize Enquiry</button>
+                </div>
+            </form>
+            {% else %}
+            <p class="mb-0">No enquiry action required right now.</p>
+            {% endif %}
+        {% elif request.user.profile.role == 'responder' %}
+            {% if can_responder_answer_status_enquiry and open_status_enquiry and status_enquiry_response_form %}
+            <div class="alert alert-warning py-2 mb-3">
+                Admin requested your current status update. Please reply using this form.
+            </div>
+            <form method="post" action="{% url 'disaster_management:incident_status_enquiry_response' incident.id %}">
+                {% csrf_token %}
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Current Status</label>
+                        {{ status_enquiry_response_form.current_status }}
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Responder Note</label>
+                        {{ status_enquiry_response_form.responder_note }}
+                    </div>
+                    <div class="col-md-12">
+                        <div class="form-check">
+                            {{ status_enquiry_response_form.recommend_finalize }}
+                            <label class="form-check-label ms-1">Recommend admin finalization/closure review</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-warning w-100">Submit Enquiry Response</button>
+                    </div>
+                </div>
+            </form>
+            {% elif stale_update_block_reason %}
+            <div class="alert alert-warning py-2 mb-0">{{ stale_update_block_reason }}</div>
+            {% elif open_status_enquiry %}
+            <p class="mb-0 text-warning">A status enquiry is open for another responder assignment.</p>
+            {% else %}
+            <p class="mb-0">No admin status enquiry pending for this incident.</p>
+            {% endif %}
+        {% elif latest_status_enquiry %}
+        <div class="small text-light">
+            Latest enquiry status: <strong>{{ latest_status_enquiry.get_status_display }}</strong> at {{ latest_status_enquiry.updated_at|date:"Y-m-d H:i" }}.
+        </div>
+        {% endif %}
+
+        {% if status_enquiry_history %}
+        <hr>
+        <h6 class="mb-2">Enquiry History</h6>
+        <div class="table-responsive">
+            <table class="table table-sm text-start align-middle table-bordered table-hover mb-0">
+                <thead>
+                    <tr class="text-white">
+                        <th>Requested</th>
+                        <th>Status</th>
+                        <th>Responder</th>
+                        <th>Overdue Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in status_enquiry_history %}
+                    <tr>
+                        <td>{{ row.requested_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ row.get_status_display }}</td>
+                        <td>
+                            {% if row.target_responder %}
+                            {{ row.target_responder.username }}
+                            {% elif row.responded_by %}
+                            {{ row.responded_by.username }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ row.get_overdue_action_display }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="bg-secondary rounded p-4 mb-4">
+        <h6 class="mb-3">Attachments</h6>
+        <div class="row g-3">
+            {% for media in media_items %}
+            <div class="col-md-3">
+                <a href="{{ media.file.url }}" target="_blank" class="btn btn-outline-primary w-100">Attachment {{ forloop.counter }}</a>
+            </div>
+            {% empty %}
+            <div class="col-12"><p class="mb-0">No attachments.</p></div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="bg-secondary rounded p-4">
+        <h6 class="mb-3">Timeline</h6>
+        <div class="table-responsive">
+            <table class="table text-start align-middle table-bordered table-hover mb-0">
+                <thead><tr class="text-white"><th>Time</th><th>Status</th><th>Actor</th><th>Note</th></tr></thead>
+                <tbody>
+                    {% for row in updates %}
+                    <tr>
+                        <td>{{ row.created_at }}</td>
+                        <td>{{ row.get_status_display }}</td>
+                        <td>{{ row.actor.username|default:"System" }}</td>
+                        <td>{{ row.note|default:"-" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-center">No updates yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded-top p-4"><div class="row"><div class="col-12 text-center">&copy; CRDR</div></div></div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+></script>
+<script>
+const incidentLat = parseFloat("{{ incident.latitude|default_if_none:'0' }}");
+const incidentLng = parseFloat("{{ incident.longitude|default_if_none:'0' }}");
+const affectedRadiusMeters = parseFloat("{{ incident.affected_radius_km|default:'1' }}") * 1000;
+const mode = "{{ incident.report_mode }}";
+const color = mode === "emergency" ? "#dc3545" : "#0d6efd";
+
+const incidentMap = L.map("incident-detail-map").setView([incidentLat, incidentLng], 13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors"
+}).addTo(incidentMap);
+
+L.marker([incidentLat, incidentLng]).addTo(incidentMap).bindPopup(
+    "<strong>{{ incident.title|escapejs }}</strong><br>{{ incident.get_incident_type_display }} - {{ incident.get_severity_display }}"
+);
+L.circle([incidentLat, incidentLng], {
+    radius: affectedRadiusMeters,
+    color: color,
+    fillColor: color,
+    fillOpacity: 0.15,
+    weight: 2
+}).addTo(incidentMap);
+
+const statusNoteInput = document.getElementById("id_note");
+const noteHelp = document.getElementById("status-note-help");
+const statusButtons = document.querySelectorAll(".workflow-action-btn[data-requires-note='1']");
+const onSceneButtons = document.querySelectorAll(".workflow-action-btn[data-requires-location='1']");
+const onSceneLatInput = document.getElementById("id_on_scene_latitude");
+const onSceneLonInput = document.getElementById("id_on_scene_longitude");
+const onSceneLocationHelp = document.getElementById("on-scene-location-help");
+const onSceneErrorBox = document.getElementById("on-scene-error-box");
+
+function showOnSceneError(message) {
+    if (!message) {
+        return;
+    }
+    if (onSceneErrorBox) {
+        onSceneErrorBox.textContent = message;
+        onSceneErrorBox.classList.remove("d-none");
+        onSceneErrorBox.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+    }
+    window.alert(message);
+}
+
+function clearOnSceneError() {
+    if (!onSceneErrorBox) {
+        return;
+    }
+    onSceneErrorBox.classList.add("d-none");
+    onSceneErrorBox.textContent = "";
+}
+
+if (statusNoteInput && statusButtons.length) {
+    statusButtons.forEach((button) => {
+        button.addEventListener("click", (event) => {
+            const noteLength = (statusNoteInput.value || "").trim().length;
+            if (noteLength >= 8) {
+                statusNoteInput.classList.remove("is-invalid");
+                return;
+            }
+            event.preventDefault();
+            statusNoteInput.classList.add("is-invalid");
+            statusNoteInput.focus();
+            if (noteHelp) {
+                noteHelp.classList.remove("text-light");
+                noteHelp.classList.add("text-warning");
+                noteHelp.textContent = "Please add at least 8 characters before setting Stabilized or Escalated.";
+            }
+        });
+    });
+}
+
+function submitStatusForm(formEl, buttonEl) {
+    if (!formEl || !buttonEl) {
+        return;
+    }
+    const staleAutoStatus = formEl.querySelector("input[data-auto-status='1']");
+    if (staleAutoStatus) {
+        staleAutoStatus.remove();
+    }
+    const autoStatus = document.createElement("input");
+    autoStatus.type = "hidden";
+    autoStatus.name = buttonEl.name || "status";
+    autoStatus.value = buttonEl.value || "";
+    autoStatus.setAttribute("data-auto-status", "1");
+    formEl.appendChild(autoStatus);
+
+    if (typeof formEl.requestSubmit === "function") {
+        formEl.requestSubmit();
+        return;
+    }
+    formEl.submit();
+}
+
+if (onSceneButtons.length) {
+    onSceneButtons.forEach((button) => {
+        button.addEventListener("click", (event) => {
+            event.preventDefault();
+            clearOnSceneError();
+            const formEl = button.closest("form");
+            if (!formEl || !onSceneLatInput || !onSceneLonInput) {
+                showOnSceneError("On Scene check failed: status form is not ready. Refresh and try again.");
+                return;
+            }
+            if (!navigator.geolocation) {
+                if (onSceneLocationHelp) {
+                    onSceneLocationHelp.classList.remove("text-light");
+                    onSceneLocationHelp.classList.add("text-warning");
+                    onSceneLocationHelp.textContent = "Browser location is unavailable. Enable GPS/location service to mark On Scene.";
+                }
+                showOnSceneError("On Scene check failed: browser geolocation is not available. Use HTTPS/localhost and enable GPS.");
+                return;
+            }
+            const originalContent = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = "Checking live location...";
+            if (onSceneLocationHelp) {
+                onSceneLocationHelp.classList.remove("text-warning");
+                onSceneLocationHelp.classList.remove("text-light");
+                onSceneLocationHelp.classList.add("text-info");
+                onSceneLocationHelp.textContent = "Checking your live location and submitting On Scene...";
+            }
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    onSceneLatInput.value = position.coords.latitude.toFixed(6);
+                    onSceneLonInput.value = position.coords.longitude.toFixed(6);
+                    submitStatusForm(formEl, button);
+                },
+                (geoError) => {
+                    button.disabled = false;
+                    button.innerHTML = originalContent;
+                    let errorMessage = "On Scene check failed: unable to fetch live location. Retry after enabling GPS/location service.";
+                    if (onSceneLocationHelp) {
+                        onSceneLocationHelp.classList.remove("text-info");
+                        onSceneLocationHelp.classList.remove("text-light");
+                        onSceneLocationHelp.classList.add("text-warning");
+                        if (geoError && geoError.code === geoError.PERMISSION_DENIED) {
+                            errorMessage = "On Scene check failed: location permission denied. Allow browser location access and retry.";
+                            onSceneLocationHelp.textContent = "Location permission denied. Allow location access to mark On Scene.";
+                        } else if (geoError && geoError.code === geoError.POSITION_UNAVAILABLE) {
+                            errorMessage = "On Scene check failed: GPS position unavailable. Move to open sky or enable device location.";
+                            onSceneLocationHelp.textContent = "GPS position unavailable. Retry after enabling device location service.";
+                        } else if (geoError && geoError.code === geoError.TIMEOUT) {
+                            errorMessage = "On Scene check failed: location request timed out. Check signal and retry.";
+                            onSceneLocationHelp.textContent = "Location request timed out. Retry with better GPS/network signal.";
+                        } else {
+                            onSceneLocationHelp.textContent = "Unable to fetch live location. Retry after enabling GPS/location service.";
+                        }
+                    }
+                    showOnSceneError(errorMessage);
+                },
+                { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+            );
+        });
+    });
+}
+
+const finalReviewForm = document.getElementById("final-review-form");
+if (finalReviewForm) {
+    finalReviewForm.addEventListener("submit", (event) => {
+        const recommendCloseInput = finalReviewForm.querySelector("input[name='recommend_close']");
+        if (!recommendCloseInput || recommendCloseInput.checked) {
+            return;
+        }
+        const proceed = window.confirm(
+            "Recommend close is not selected. Submit final review without closure recommendation?"
+        );
+        if (!proceed) {
+            event.preventDefault();
+        }
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Submit Report{% endblock %}
+
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+    <nav class="navbar bg-secondary navbar-dark">
+        <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+            <h3 class="text-primary"><i class="fa fa-user-edit me-2"></i>CRDR</h3>
+        </a>
+        {% include "includes/sidebar_links.html" with active_menu=active_menu %}
+    </nav>
+</div>
+
+<div class="content">
+    <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+        <a href="#" class="sidebar-toggler flex-shrink-0"><i class="fa fa-bars"></i></a>
+        <div class="navbar-nav align-items-center ms-auto">
+            {% include "includes/topbar_notifications.html" %}
+            <div class="nav-item dropdown">
+                <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                    <img class="rounded-circle me-lg-2" src="{% if request.user.profile.profile_photo %}{{ request.user.profile.profile_photo.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
+                    <span class="d-none d-lg-inline-flex">{{ request.user.get_full_name|default:request.user.username }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0">
+                    <a href="{% url 'disaster_management:profile_edit' %}" class="dropdown-item">My Profile</a>
+                    <form method="post" action="{% url 'disaster_management:logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item">Log Out</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded p-4">
+        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+            <div>
+                <h5 class="mb-1">Report a Situation</h5>
+                <p class="mb-0 text-light">
+                    Use this form for non-emergency situations. If there is immediate danger, use the emergency report form.
+                </p>
+            </div>
+            <a href="{% url 'disaster_management:incident_report_emergency' %}" class="btn btn-danger btn-sm">Emergency Report</a>
+        </div>
+        {% if quota %}
+        <div class="alert alert-info py-2 mt-3 mb-0">
+            Remaining reports today: <strong>{{ quota.daily_remaining }}</strong> |
+            You can send <strong>{{ quota.window_remaining }}</strong> more report(s) in the next 30 minutes.
+        </div>
+        {% endif %}
+        <div class="mb-4"></div>
+
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Title</label>
+                    {{ form.title }}
+                    {% for error in form.title.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Type</label>
+                    {{ form.incident_type }}
+                    {% for error in form.incident_type.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">How Serious?</label>
+                    {{ form.severity }}
+                    {% for error in form.severity.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">Description</label>
+                    {{ form.description }}
+                    {% for error in form.description.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Address / Landmark</label>
+                    {{ form.address }}
+                    {% for error in form.address.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">When It Happened</label>
+                    {{ form.occurred_at }}
+                    {% for error in form.occurred_at.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">People Affected</label>
+                    {{ form.people_affected }}
+                    {% for error in form.people_affected.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Contact Phone</label>
+                    {{ form.contact_phone }}
+                    {% for error in form.contact_phone.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Affected Area (km)</label>
+                    {{ form.affected_radius_km }}
+                    {% for error in form.affected_radius_km.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Latitude</label>
+                    {{ form.latitude }}
+                    {% for error in form.latitude.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Longitude</label>
+                    {{ form.longitude }}
+                    {% for error in form.longitude.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-12 d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="captureLocation()">Use My Current Location</button>
+                    <small class="text-light">Location helps the response team reach the place quickly.</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Attachments (photos/videos/files)</label>
+                    {{ form.attachments }}
+                    {% for error in form.attachments.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Live Video</label>
+                    <div class="d-flex gap-2 mb-2">
+                        <button type="button" id="startRecordBtn" class="btn btn-outline-primary btn-sm">Start Recording</button>
+                        <button type="button" id="stopRecordBtn" class="btn btn-outline-warning btn-sm" disabled>Stop Recording</button>
+                    </div>
+                    <video id="livePreview" class="w-100 rounded border border-secondary" style="max-height: 220px;" autoplay muted playsinline></video>
+                    <small id="recordingStatus" class="text-light d-block mt-2">
+                        You can record a short video and it will be added automatically.
+                    </small>
+                </div>
+            </div>
+            {% for error in form.non_field_errors %}<p class="text-danger mt-2 mb-0">{{ error }}</p>{% endfor %}
+            <button type="submit" class="btn btn-primary mt-4">Submit Report</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded-top p-4"><div class="row"><div class="col-12 text-center">&copy; CRDR</div></div></div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function captureLocation() {
+    if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser.");
+        return;
+    }
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            document.getElementById("id_latitude").value = position.coords.latitude.toFixed(6);
+            document.getElementById("id_longitude").value = position.coords.longitude.toFixed(6);
+        },
+        function() {
+            alert("Unable to fetch your location.");
+        }
+    );
+}
+
+let activeStream = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+const startBtn = document.getElementById("startRecordBtn");
+const stopBtn = document.getElementById("stopRecordBtn");
+const preview = document.getElementById("livePreview");
+const statusLabel = document.getElementById("recordingStatus");
+
+function stopTracks() {
+    if (!activeStream) return;
+    activeStream.getTracks().forEach((track) => track.stop());
+    activeStream = null;
+    if (preview) {
+        preview.srcObject = null;
+    }
+}
+
+function addRecordedVideoToAttachments(blob) {
+    const attachmentsInput = document.getElementById("id_attachments");
+    if (!attachmentsInput) return;
+    if (typeof DataTransfer === "undefined") {
+        statusLabel.className = "text-warning d-block mt-2";
+        statusLabel.textContent = "Recorded video is ready, but your browser cannot auto-attach it. Please upload manually.";
+        return;
+    }
+    const fileName = `incident_live_${new Date().toISOString().replace(/[:.]/g, "-")}.webm`;
+    const file = new File([blob], fileName, { type: "video/webm" });
+    const transfer = new DataTransfer();
+    for (const existingFile of attachmentsInput.files) {
+        transfer.items.add(existingFile);
+    }
+    transfer.items.add(file);
+    attachmentsInput.files = transfer.files;
+    statusLabel.className = "text-success d-block mt-2";
+    statusLabel.textContent = "Live video recording added to attachments.";
+}
+
+async function startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
+        alert("Live video recording is not supported in this browser.");
+        return;
+    }
+    try {
+        activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        preview.srcObject = activeStream;
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(activeStream);
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                recordedChunks.push(event.data);
+            }
+        };
+        mediaRecorder.onstop = () => {
+            if (!recordedChunks.length) {
+                statusLabel.className = "text-warning d-block mt-2";
+                statusLabel.textContent = "No video data captured. Please try again.";
+                stopTracks();
+                return;
+            }
+            const blob = new Blob(recordedChunks, { type: "video/webm" });
+            addRecordedVideoToAttachments(blob);
+            stopTracks();
+        };
+        mediaRecorder.start();
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        statusLabel.className = "text-info d-block mt-2";
+        statusLabel.textContent = "Recording in progress...";
+    } catch (error) {
+        stopTracks();
+        alert("Unable to access camera or microphone.");
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+    }
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+}
+
+if (startBtn && stopBtn) {
+    startBtn.addEventListener("click", startRecording);
+    stopBtn.addEventListener("click", stopRecording);
+}
+
+window.addEventListener("beforeunload", stopTracks);
+</script>
+{% endblock %}
+
+

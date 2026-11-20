@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+    <nav class="navbar bg-secondary navbar-dark">
+        <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+            <h3 class="text-primary"><i class="fa fa-user-edit me-2"></i>CRDR</h3>
+        </a>
+        {% include "includes/sidebar_links.html" with active_menu="notifications" %}
+    </nav>
+</div>
+<div class="content">
+    <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+        <a href="#" class="sidebar-toggler flex-shrink-0"><i class="fa fa-bars"></i></a>
+        <div class="navbar-nav align-items-center ms-auto">
+            {% include "includes/topbar_notifications.html" %}
+            <div class="nav-item dropdown">
+                <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                    <img class="rounded-circle me-lg-2" src="{% if request.user.profile.profile_photo %}{{ request.user.profile.profile_photo.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
+                    <span class="d-none d-lg-inline-flex">{{ request.user.get_full_name|default:request.user.username }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0">
+                    <a href="{% url 'disaster_management:profile_edit' %}" class="dropdown-item">My Profile</a>
+                    <form method="post" action="{% url 'disaster_management:logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item">Log Out</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">My Notifications</h5>
+            <form method="post" action="{% url 'disaster_management:notification_mark_all_read' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-light">Mark All As Read</button>
+            </form>
+        </div>
+        <div class="table-responsive">
+            <table class="table text-start align-middle table-bordered table-hover mb-0">
+                <thead><tr class="text-white"><th>Time</th><th>Subject</th><th>Message</th><th>Incident</th></tr></thead>
+                <tbody>
+                    {% for row in logs %}
+                    <tr>
+                        <td>{{ row.created_at }}</td>
+                        <td>{{ row.subject }}</td>
+                        <td>{{ row.message }}</td>
+                        <td><a href="{% url 'disaster_management:incident_detail' row.incident.id %}">#{{ row.incident.id }}</a></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-center">No notifications yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded-top p-4"><div class="row"><div class="col-12 text-center">&copy; CRDR</div></div></div>
+</div>
+</div>
+{% endblock %}
+
+

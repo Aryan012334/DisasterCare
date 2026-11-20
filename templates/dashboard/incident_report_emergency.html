@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Emergency Report{% endblock %}
+
+{% block extra_head %}
+<style>
+    .emergency-step-card {
+        border: 1px solid rgba(220, 53, 69, 0.35);
+        border-radius: 10px;
+        background: rgba(220, 53, 69, 0.06);
+    }
+    .emergency-pill-btn {
+        border-radius: 999px;
+    }
+    .quick-guide-item {
+        border-left: 3px solid rgba(220, 53, 69, 0.8);
+        padding-left: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+    <nav class="navbar bg-secondary navbar-dark">
+        <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+            <h3 class="text-primary"><i class="fa fa-user-edit me-2"></i>CRDR</h3>
+        </a>
+        {% include "includes/sidebar_links.html" with active_menu=active_menu %}
+    </nav>
+</div>
+
+<div class="content">
+    <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+        <a href="#" class="sidebar-toggler flex-shrink-0"><i class="fa fa-bars"></i></a>
+        <div class="navbar-nav align-items-center ms-auto">
+            {% include "includes/topbar_notifications.html" %}
+            <div class="nav-item dropdown">
+                <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                    <img class="rounded-circle me-lg-2" src="{% if request.user.profile.profile_photo %}{{ request.user.profile.profile_photo.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
+                    <span class="d-none d-lg-inline-flex">{{ request.user.get_full_name|default:request.user.username }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0">
+                    <a href="{% url 'disaster_management:profile_edit' %}" class="dropdown-item">My Profile</a>
+                    <form method="post" action="{% url 'disaster_management:logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item">Log Out</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded p-4 border border-danger">
+        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-3">
+            <div>
+                <h5 class="mb-1 text-danger">Emergency Report</h5>
+                <p class="mb-0 text-light">
+                    Quick 3-step form for urgent situations. Add basic details and your location.
+                </p>
+            </div>
+            <a href="{% url 'disaster_management:incident_report' %}" class="btn btn-outline-light btn-sm">Use Regular Form</a>
+        </div>
+        <div class="alert alert-danger py-2 mb-3">
+            This sends an immediate emergency alert. Use only for real emergencies.
+        </div>
+        {% if quota %}
+        <div class="alert alert-info py-2 mb-4">
+            Remaining reports today: <strong>{{ quota.daily_remaining }}</strong> |
+            You can send <strong>{{ quota.window_remaining }}</strong> more report(s) in the next 30 minutes.
+        </div>
+        {% endif %}
+
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <form method="post" enctype="multipart/form-data" id="emergencyReportForm">
+                    {% csrf_token %}
+
+                    <div class="emergency-step-card p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">Step 1: Quick Details</h6>
+                            <div class="d-flex flex-wrap gap-1">
+                                <button type="button" class="btn btn-outline-danger btn-sm emergency-pill-btn emergency-preset-btn" data-preset="fire">Fire</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm emergency-pill-btn emergency-preset-btn" data-preset="flood">Flood</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm emergency-pill-btn emergency-preset-btn" data-preset="medical">Medical</button>
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Emergency Title</label>
+                                {{ form.title }}
+                                {% for error in form.title.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Type</label>
+                                {{ form.incident_type }}
+                                {% for error in form.incident_type.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">How Serious?</label>
+                                {{ form.severity }}
+                                {% for error in form.severity.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label">Quick Description</label>
+                                {{ form.description }}
+                                {% for error in form.description.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="emergency-step-card p-3 mb-3">
+                        <h6 class="mb-2">Step 2: Location (Required)</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Latitude</label>
+                                {{ form.latitude }}
+                                {% for error in form.latitude.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Longitude</label>
+                                {{ form.longitude }}
+                                {% for error in form.longitude.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label">Address / Landmark (optional)</label>
+                                {{ form.address }}
+                                {% for error in form.address.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                            </div>
+                            <div class="col-md-12 d-flex flex-wrap align-items-center gap-2">
+                                <button type="button" class="btn btn-danger btn-sm" id="captureLocationBtn">Use My Current Location</button>
+                                <small id="locationStatusLabel" class="text-light">Location helps the response team reach faster.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="emergency-step-card p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">Step 3: Extra Details (Optional)</h6>
+                            <button class="btn btn-outline-light btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#emergencyOptionalBlock" aria-expanded="false">Show/Hide Optional Fields</button>
+                        </div>
+                        <div class="collapse show" id="emergencyOptionalBlock">
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-4">
+                                    <label class="form-label">People Affected (optional)</label>
+                                    {{ form.people_affected }}
+                                    {% for error in form.people_affected.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Contact Phone (optional)</label>
+                                    {{ form.contact_phone }}
+                                    {% for error in form.contact_phone.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Affected Area (km)</label>
+                                    {{ form.affected_radius_km }}
+                                    {% for error in form.affected_radius_km.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Attachments (photos/videos/files)</label>
+                                    {{ form.attachments }}
+                                    {% for error in form.attachments.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Live Video</label>
+                                    <div class="d-flex gap-2 mb-2">
+                                        <button type="button" id="startRecordBtn" class="btn btn-outline-primary btn-sm">Start Recording</button>
+                                        <button type="button" id="stopRecordBtn" class="btn btn-outline-warning btn-sm" disabled>Stop Recording</button>
+                                    </div>
+                                    <video id="livePreview" class="w-100 rounded border border-secondary" style="max-height: 220px;" autoplay muted playsinline></video>
+                                    <small id="recordingStatus" class="text-light d-block mt-2">
+                                        Optional: record a short video and attach it automatically.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning py-2">
+                        <div class="form-check mb-0">
+                            {{ form.confirm_emergency_policy }}
+                            <label class="form-check-label ms-1" for="{{ form.confirm_emergency_policy.id_for_label }}">
+                                {{ form.confirm_emergency_policy.label }}
+                            </label>
+                        </div>
+                        {% for error in form.confirm_emergency_policy.errors %}<p class="text-danger mb-0 mt-1">{{ error }}</p>{% endfor %}
+                    </div>
+                    {% for error in form.non_field_errors %}<p class="text-danger mt-2 mb-0">{{ error }}</p>{% endfor %}
+
+                    <div class="d-grid d-md-flex gap-2 mt-3">
+                        <button type="submit" id="submitEmergencyBtn" class="btn btn-danger flex-fill">
+                            <span id="submitEmergencyBtnLabel">Send Emergency Report</span>
+                        </button>
+                        <a href="{% url 'disaster_management:incident_list' %}" class="btn btn-outline-light">Back to Reports</a>
+                    </div>
+                </form>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="bg-dark rounded p-3 mb-3">
+                    <h6 class="mb-3 text-danger">Quick Steps</h6>
+                    <div class="quick-guide-item mb-2">
+                        <strong>1. Add Quick Details</strong>
+                        <p class="small mb-0 text-light">Use a preset and write a short description.</p>
+                    </div>
+                    <div class="quick-guide-item mb-2">
+                        <strong>2. Add Location</strong>
+                        <p class="small mb-0 text-light">Tap "Use My Current Location" to fill coordinates.</p>
+                    </div>
+                    <div class="quick-guide-item">
+                        <strong>3. Send Alert</strong>
+                        <p class="small mb-0 text-light">Check the box and submit. Nearby teams get the alert immediately.</p>
+                    </div>
+                </div>
+                <div class="bg-dark rounded p-3">
+                    <h6 class="mb-2">Before You Send</h6>
+                    <ul class="small mb-0">
+                        <li>High/Critical severity enforced.</li>
+                        <li>Location required for dispatch routing.</li>
+                        <li>Anti-abuse reporting limits enabled.</li>
+                        <li>Upload validation enabled on server.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded-top p-4"><div class="row"><div class="col-12 text-center">&copy; CRDR</div></div></div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const locationStatusLabel = document.getElementById("locationStatusLabel");
+const captureLocationBtn = document.getElementById("captureLocationBtn");
+const emergencyFormEl = document.getElementById("emergencyReportForm");
+const submitEmergencyBtn = document.getElementById("submitEmergencyBtn");
+const submitEmergencyBtnLabel = document.getElementById("submitEmergencyBtnLabel");
+let emergencyAutoResubmit = false;
+
+function setLocationStatus(text, tone) {
+    if (!locationStatusLabel) return;
+    locationStatusLabel.className = "";
+    if (tone === "error") {
+        locationStatusLabel.classList.add("text-danger");
+    } else if (tone === "success") {
+        locationStatusLabel.classList.add("text-success");
+    } else {
+        locationStatusLabel.classList.add("text-light");
+    }
+    locationStatusLabel.textContent = text;
+}
+
+function captureLocation() {
+    if (!navigator.geolocation) {
+        setLocationStatus("Geolocation is not supported in this browser.", "error");
+        return Promise.resolve(false);
+    }
+    setLocationStatus("Fetching your location...", "default");
+    return new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                document.getElementById("id_latitude").value = position.coords.latitude.toFixed(6);
+                document.getElementById("id_longitude").value = position.coords.longitude.toFixed(6);
+                setLocationStatus("Location captured successfully.", "success");
+                resolve(true);
+            },
+            function() {
+                setLocationStatus("Unable to fetch location. Please allow location permission and retry.", "error");
+                resolve(false);
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+        );
+    });
+}
+
+const emergencyPresets = {
+    fire: { type: "fire", severity: "critical", title: "Major Fire Emergency", people: 10, radius: 3.0 },
+    flood: { type: "flood", severity: "high", title: "Flash Flood Emergency", people: 20, radius: 4.0 },
+    medical: { type: "medical", severity: "critical", title: "Critical Medical Emergency", people: 1, radius: 1.0 }
+};
+
+function applyEmergencyPreset(key) {
+    const preset = emergencyPresets[key];
+    if (!preset) return;
+    const typeEl = document.getElementById("id_incident_type");
+    const severityEl = document.getElementById("id_severity");
+    const titleEl = document.getElementById("id_title");
+    const peopleEl = document.getElementById("id_people_affected");
+    const radiusEl = document.getElementById("id_affected_radius_km");
+    if (typeEl) typeEl.value = preset.type;
+    if (severityEl) severityEl.value = preset.severity;
+    if (titleEl && !titleEl.value.trim()) titleEl.value = preset.title;
+    if (peopleEl && !peopleEl.value.trim()) peopleEl.value = preset.people;
+    if (radiusEl && !radiusEl.value.trim()) radiusEl.value = preset.radius;
+}
+
+if (captureLocationBtn) {
+    captureLocationBtn.addEventListener("click", function () {
+        captureLocation();
+    });
+}
+
+document.querySelectorAll(".emergency-preset-btn").forEach((btn) => {
+    btn.addEventListener("click", function () {
+        applyEmergencyPreset(btn.dataset.preset);
+    });
+});
+
+if (emergencyFormEl) {
+    emergencyFormEl.addEventListener("submit", async function (event) {
+        if (emergencyAutoResubmit) {
+            emergencyAutoResubmit = false;
+            return;
+        }
+        const policyEl = document.getElementById("id_confirm_emergency_policy");
+        if (policyEl && !policyEl.checked) {
+            event.preventDefault();
+            policyEl.focus();
+            return;
+        }
+
+        const latEl = document.getElementById("id_latitude");
+        const lonEl = document.getElementById("id_longitude");
+        const latMissing = !latEl || !String(latEl.value || "").trim();
+        const lonMissing = !lonEl || !String(lonEl.value || "").trim();
+        if (latMissing || lonMissing) {
+            event.preventDefault();
+            const ok = await captureLocation();
+            if (!ok) {
+                return;
+            }
+            emergencyAutoResubmit = true;
+            emergencyFormEl.requestSubmit();
+            return;
+        }
+
+        if (submitEmergencyBtn) {
+            submitEmergencyBtn.disabled = true;
+        }
+        if (submitEmergencyBtnLabel) {
+            submitEmergencyBtnLabel.textContent = "Submitting emergency alert...";
+        }
+    });
+}
+
+window.addEventListener("load", function() {
+    captureLocation();
+    const titleField = document.getElementById("id_title");
+    if (titleField) {
+        titleField.focus();
+    }
+});
+
+let activeStream = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+const startBtn = document.getElementById("startRecordBtn");
+const stopBtn = document.getElementById("stopRecordBtn");
+const preview = document.getElementById("livePreview");
+const statusLabel = document.getElementById("recordingStatus");
+
+function stopTracks() {
+    if (!activeStream) return;
+    activeStream.getTracks().forEach((track) => track.stop());
+    activeStream = null;
+    if (preview) {
+        preview.srcObject = null;
+    }
+}
+
+function addRecordedVideoToAttachments(blob) {
+    const attachmentsInput = document.getElementById("id_attachments");
+    if (!attachmentsInput) return;
+    if (typeof DataTransfer === "undefined") {
+        statusLabel.className = "text-warning d-block mt-2";
+        statusLabel.textContent = "Recorded video is ready, but your browser cannot auto-attach it. Please upload manually.";
+        return;
+    }
+    const fileName = `incident_live_${new Date().toISOString().replace(/[:.]/g, "-")}.webm`;
+    const file = new File([blob], fileName, { type: "video/webm" });
+    const transfer = new DataTransfer();
+    for (const existingFile of attachmentsInput.files) {
+        transfer.items.add(existingFile);
+    }
+    transfer.items.add(file);
+    attachmentsInput.files = transfer.files;
+    statusLabel.className = "text-success d-block mt-2";
+    statusLabel.textContent = "Live video recording added to attachments.";
+}
+
+async function startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
+        alert("Live video recording is not supported in this browser.");
+        return;
+    }
+    try {
+        activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        preview.srcObject = activeStream;
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(activeStream);
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                recordedChunks.push(event.data);
+            }
+        };
+        mediaRecorder.onstop = () => {
+            if (!recordedChunks.length) {
+                statusLabel.className = "text-warning d-block mt-2";
+                statusLabel.textContent = "No video data captured. Please try again.";
+                stopTracks();
+                return;
+            }
+            const blob = new Blob(recordedChunks, { type: "video/webm" });
+            addRecordedVideoToAttachments(blob);
+            stopTracks();
+        };
+        mediaRecorder.start();
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        statusLabel.className = "text-info d-block mt-2";
+        statusLabel.textContent = "Recording in progress...";
+    } catch (error) {
+        stopTracks();
+        alert("Unable to access camera or microphone.");
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+    }
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+}
+
+if (startBtn && stopBtn) {
+    startBtn.addEventListener("click", startRecording);
+    stopBtn.addEventListener("click", stopRecording);
+}
+
+window.addEventListener("beforeunload", stopTracks);
+</script>
+{% endblock %}

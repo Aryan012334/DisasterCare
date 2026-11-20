@@ -1,0 +1,599 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}CRDR{% endblock %}</title>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta content="" name="keywords">
+    <meta content="" name="description">
+
+    <link href="{% static 'img/favicon.ico' %}" rel="icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&family=Roboto:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.10.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{% static 'lib/owlcarousel/assets/owl.carousel.min.css' %}" rel="stylesheet">
+    <link href="{% static 'lib/tempusdominus/css/tempusdominus-bootstrap-4.min.css' %}" rel="stylesheet" />
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+    <link href="{% static 'css/rdms.css' %}" rel="stylesheet">
+    {% block extra_head %}{% endblock %}
+</head>
+<body
+    data-rdms-admin="{{ request.user.is_superuser|yesno:'1,0' }}"
+    data-rdms-role="{{ request.user.profile.role|default:''|escape }}"
+    data-rdms-responder-available="{% if request.user.is_authenticated and request.user.profile.role == 'responder' and request.user.responder_profile.is_available %}1{% else %}0{% endif %}"
+>
+    {% include "includes/messages.html" %}
+    <div class="container-fluid position-relative d-flex p-0">
+        <div id="spinner" class="show bg-dark position-fixed translate-middle w-100 vh-100 top-50 start-50 d-flex align-items-center justify-content-center">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+
+        {% block header %}{% endblock %}
+        {% block content %}{% endblock %}
+        {% block footer %}{% endblock %}
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'lib/chart/chart.min.js' %}"></script>
+    <script src="{% static 'lib/easing/easing.min.js' %}"></script>
+    <script src="{% static 'lib/waypoints/waypoints.min.js' %}"></script>
+    <script src="{% static 'lib/owlcarousel/owl.carousel.min.js' %}"></script>
+    <script src="{% static 'lib/tempusdominus/js/moment.min.js' %}"></script>
+    <script src="{% static 'lib/tempusdominus/js/moment-timezone.min.js' %}"></script>
+    <script src="{% static 'lib/tempusdominus/js/tempusdominus-bootstrap-4.min.js' %}"></script>
+    <script src="{% static 'js/main.js' %}"></script>
+    {% if request.user.is_authenticated %}
+    <script>
+    (function() {
+        const sidebarBadge = document.getElementById("live-notification-badge");
+        const pageData = document.body ? document.body.dataset : {};
+        const isAdmin = pageData.rdmsAdmin === "1";
+        const role = pageData.rdmsRole || "";
+        const isResponder = role === "responder";
+        const responderAvailabilityUrl = "{% url 'disaster_management:disaster_management_api:set_responder_availability' %}";
+        const initialResponderAvailable = pageData.rdmsResponderAvailable === "1";
+        const canReceiveEmergencyPopup = isAdmin || role === "responder";
+        const maxDropdownItems = 12;
+        const seenEmergencyKey = "rdms_seen_emergency_notification_ids";
+        let latestId = 0;
+        let currentUnreadCount = 0;
+        let recentItems = [];
+        let headerBadge = null;
+        let headerList = null;
+        let headerEmpty = null;
+        let markAllReadBtn = null;
+        let responderAvailabilitySwitch = null;
+        let responderAvailabilityValue = initialResponderAvailable;
+        let audioContext = null;
+        let seenEmergencyIds = new Set();
+
+        try {
+            const stored = sessionStorage.getItem(seenEmergencyKey);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed)) {
+                    seenEmergencyIds = new Set(parsed.map((v) => Number(v)));
+                }
+            }
+        } catch (error) {
+            seenEmergencyIds = new Set();
+        }
+
+        function saveSeenEmergencyIds() {
+            try {
+                sessionStorage.setItem(seenEmergencyKey, JSON.stringify(Array.from(seenEmergencyIds).slice(-120)));
+            } catch (error) {
+                // Ignore storage errors.
+            }
+        }
+
+        function ensureAudioContext() {
+            if (audioContext) {
+                return audioContext;
+            }
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) {
+                return null;
+            }
+            audioContext = new AudioContextClass();
+            if (audioContext.state === "suspended") {
+                audioContext.resume();
+            }
+            return audioContext;
+        }
+
+        function playSirenWarning() {
+            const ctx = ensureAudioContext();
+            if (!ctx) {
+                return;
+            }
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "sawtooth";
+            const now = ctx.currentTime;
+            osc.frequency.setValueAtTime(640, now);
+            osc.frequency.linearRampToValueAtTime(1080, now + 0.45);
+            osc.frequency.linearRampToValueAtTime(640, now + 0.9);
+            osc.frequency.linearRampToValueAtTime(1080, now + 1.35);
+            osc.frequency.linearRampToValueAtTime(640, now + 1.8);
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.13, now + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.1);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 2.1);
+        }
+
+        function escapeHtml(value) {
+            const div = document.createElement("div");
+            div.textContent = value || "";
+            return div.innerHTML;
+        }
+
+        function getCookie(name) {
+            const cookies = document.cookie ? document.cookie.split(";") : [];
+            for (const cookieRaw of cookies) {
+                const cookie = cookieRaw.trim();
+                if (cookie.startsWith(name + "=")) {
+                    return decodeURIComponent(cookie.substring(name.length + 1));
+                }
+            }
+            return "";
+        }
+
+        function getCsrfToken() {
+            const cookieToken = getCookie("csrftoken");
+            if (cookieToken) {
+                return cookieToken;
+            }
+            const hidden = document.querySelector("input[name='csrfmiddlewaretoken']");
+            return hidden ? hidden.value : "";
+        }
+
+        function showSystemNotice(message, tone) {
+            if (!message) {
+                return;
+            }
+            let container = document.getElementById("live-system-notice-container");
+            if (!container) {
+                container = document.createElement("div");
+                container.id = "live-system-notice-container";
+                container.style.position = "fixed";
+                container.style.top = "82px";
+                container.style.right = "20px";
+                container.style.zIndex = "2100";
+                container.style.width = "min(90vw, 380px)";
+                document.body.appendChild(container);
+            }
+            const alert = document.createElement("div");
+            alert.className = "alert shadow mb-2 py-2 px-3 " + (tone === "error" ? "alert-danger" : "alert-success");
+            alert.textContent = message;
+            container.prepend(alert);
+            while (container.children.length > 3) {
+                container.removeChild(container.lastChild);
+            }
+            setTimeout(function() {
+                if (alert.parentNode) {
+                    alert.remove();
+                }
+            }, 4500);
+        }
+
+        function getTopNavbarActionsContainer() {
+            const topNavbar =
+                document.querySelector(".content .navbar.sticky-top")
+                || document.querySelector(".content nav.navbar");
+            if (!topNavbar) {
+                return null;
+            }
+            let actionsContainer = topNavbar.querySelector(".navbar-nav.align-items-center.ms-auto");
+            if (!actionsContainer) {
+                actionsContainer = document.createElement("div");
+                actionsContainer.className = "navbar-nav align-items-center ms-auto";
+                topNavbar.appendChild(actionsContainer);
+            }
+            return actionsContainer;
+        }
+
+        function createHeaderNotificationDropdown() {
+            const existingBadge = document.getElementById("header-notification-badge");
+            const existingList = document.getElementById("header-notification-list");
+            const existingEmpty = document.getElementById("header-notification-empty");
+            const existingMarkAll = document.getElementById("header-mark-read-btn");
+            if (existingBadge && existingList && existingEmpty && existingMarkAll) {
+                headerBadge = existingBadge;
+                headerList = existingList;
+                headerEmpty = existingEmpty;
+                markAllReadBtn = existingMarkAll;
+                return;
+            }
+
+            const actionsContainer = getTopNavbarActionsContainer();
+            if (!actionsContainer) {
+                return;
+            }
+            const wrapper = document.createElement("div");
+            wrapper.className = "nav-item dropdown rdms-notification-dropdown";
+            wrapper.innerHTML = [
+                '<a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">',
+                '    <i class="fa fa-bell me-lg-2"></i>',
+                '    <span class="d-none d-lg-inline-flex">Notifications</span>',
+                '    <span id="header-notification-badge" class="badge bg-danger ms-1 d-none">0</span>',
+                '</a>',
+                '<div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0 p-2" style="min-width: 360px;">',
+                '    <div class="d-flex justify-content-between align-items-center px-2 py-1">',
+                '        <strong>Live Alerts</strong>',
+                '        <button id="header-mark-read-btn" class="btn btn-sm btn-outline-light" type="button">Mark all read</button>',
+                "    </div>",
+                '    <hr class="dropdown-divider">',
+                '    <div id="header-notification-list" style="max-height: 320px; overflow-y: auto;"></div>',
+                '    <div id="header-notification-empty" class="text-center text-muted py-2">No notifications yet.</div>',
+                '</div>'
+            ].join("");
+            actionsContainer.insertBefore(wrapper, actionsContainer.firstChild);
+            headerBadge = wrapper.querySelector("#header-notification-badge");
+            headerList = wrapper.querySelector("#header-notification-list");
+            headerEmpty = wrapper.querySelector("#header-notification-empty");
+            markAllReadBtn = wrapper.querySelector("#header-mark-read-btn");
+        }
+
+        function updateResponderAvailabilityLabel() {
+            const labelEl = document.getElementById("header-availability-label");
+            if (!labelEl) {
+                return;
+            }
+            if (responderAvailabilityValue) {
+                labelEl.textContent = "Available";
+                labelEl.classList.remove("text-warning");
+                labelEl.classList.add("text-success");
+                return;
+            }
+            labelEl.textContent = "Unavailable";
+            labelEl.classList.remove("text-success");
+            labelEl.classList.add("text-warning");
+        }
+
+        function tryGetCurrentLocation() {
+            return new Promise(function(resolve) {
+                if (!navigator.geolocation) {
+                    resolve(null);
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                    function(pos) {
+                        resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+                    },
+                    function() {
+                        resolve(null);
+                    },
+                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                );
+            });
+        }
+
+        async function createResponderAvailabilityToggle() {
+            if (!isResponder) {
+                return;
+            }
+            const actionsContainer = getTopNavbarActionsContainer();
+            if (!actionsContainer) {
+                return;
+            }
+            if (actionsContainer.querySelector("#header-responder-availability")) {
+                return;
+            }
+            const wrapper = document.createElement("div");
+            wrapper.id = "header-responder-availability";
+            wrapper.className = "nav-item d-flex align-items-center me-2 header-availability-wrap";
+            wrapper.innerHTML = [
+                '<span class="availability-label" id="header-availability-label"></span>',
+                '<div class="form-check form-switch m-0">',
+                '   <input class="form-check-input" type="checkbox" id="headerAvailabilitySwitch">',
+                "</div>",
+            ].join("");
+            actionsContainer.insertBefore(wrapper, actionsContainer.firstChild);
+            responderAvailabilitySwitch = wrapper.querySelector("#headerAvailabilitySwitch");
+            responderAvailabilitySwitch.checked = responderAvailabilityValue;
+            updateResponderAvailabilityLabel();
+
+            responderAvailabilitySwitch.addEventListener("change", async function() {
+                const nextValue = responderAvailabilitySwitch.checked;
+                responderAvailabilitySwitch.disabled = true;
+                try {
+                    const payload = new FormData();
+                    payload.set("is_available", nextValue ? "on" : "off");
+                    if (nextValue) {
+                        const loc = await tryGetCurrentLocation();
+                        if (loc) {
+                            payload.set("latitude", String(loc.lat.toFixed(6)));
+                            payload.set("longitude", String(loc.lon.toFixed(6)));
+                        }
+                    }
+                    const response = await fetch(responderAvailabilityUrl, {
+                        method: "POST",
+                        headers: {
+                            "X-CSRFToken": getCsrfToken(),
+                            "X-Requested-With": "XMLHttpRequest",
+                        },
+                        body: payload,
+                    });
+                    let data = {};
+                    try {
+                        data = await response.json();
+                    } catch (err) {
+                        data = {};
+                    }
+                    if (!response.ok) {
+                        throw new Error(data.message || "Unable to update availability.");
+                    }
+                    responderAvailabilityValue = nextValue;
+                    updateResponderAvailabilityLabel();
+                    showSystemNotice(data.message || "Availability updated.", "success");
+                } catch (error) {
+                    responderAvailabilitySwitch.checked = responderAvailabilityValue;
+                    updateResponderAvailabilityLabel();
+                    showSystemNotice(error.message || "Unable to update availability.", "error");
+                } finally {
+                    responderAvailabilitySwitch.disabled = false;
+                }
+            });
+        }
+
+        function stabilizeNavbarDropdowns() {
+            document.querySelectorAll(".content .navbar .dropdown-menu form").forEach(function(formEl) {
+                formEl.addEventListener("click", function(event) {
+                    event.stopPropagation();
+                });
+            });
+            document.querySelectorAll(".content .navbar .dropdown-toggle[data-bs-toggle='dropdown']").forEach(function(toggle) {
+                toggle.setAttribute("data-bs-auto-close", "outside");
+                if (window.bootstrap && window.bootstrap.Dropdown) {
+                    window.bootstrap.Dropdown.getOrCreateInstance(toggle);
+                }
+            });
+        }
+
+        function updateBadges(unreadCount) {
+            const normalized = unreadCount > 99 ? "99+" : String(unreadCount);
+            if (sidebarBadge) {
+                sidebarBadge.textContent = normalized;
+                sidebarBadge.classList.toggle("d-none", unreadCount === 0);
+            }
+            if (headerBadge) {
+                headerBadge.textContent = normalized;
+                headerBadge.classList.toggle("d-none", unreadCount === 0);
+            }
+        }
+
+        function renderHeaderList() {
+            if (!headerList || !headerEmpty) {
+                return;
+            }
+            headerList.innerHTML = "";
+            if (!recentItems.length) {
+                headerEmpty.classList.remove("d-none");
+                return;
+            }
+            headerEmpty.classList.add("d-none");
+            for (const item of recentItems) {
+                const block = document.createElement("div");
+                block.className = "dropdown-item py-2";
+                const emergencyBadge = item.is_emergency ? '<span class="badge bg-danger ms-2">Emergency</span>' : "";
+                const unreadBadge = item.is_read ? "" : '<span class="badge bg-warning text-dark ms-2">New</span>';
+                block.innerHTML = [
+                    '<div class="d-flex align-items-start justify-content-between">',
+                    `   <strong class="me-2">${escapeHtml(item.subject)}</strong>${emergencyBadge}${unreadBadge}`,
+                    "</div>",
+                    `<small class="text-wrap d-block">${escapeHtml(item.message)}</small>`,
+                    `<small class="text-muted d-block">${escapeHtml(item.created_at)} | #${item.incident_id}</small>`,
+                    '<div class="d-flex gap-2 mt-2">',
+                    `   <a class="btn btn-sm btn-outline-light notif-open-link" href="${item.detail_url}">Open</a>`,
+                    item.is_read ? "" : '   <button type="button" class="btn btn-sm btn-outline-primary notif-read-btn">Mark read</button>',
+                    "</div>",
+                ].join("");
+                const openLink = block.querySelector(".notif-open-link");
+                if (openLink) {
+                    openLink.addEventListener("click", function() {
+                        markNotificationRead(item, false);
+                    });
+                }
+                const readBtn = block.querySelector(".notif-read-btn");
+                if (readBtn) {
+                    readBtn.addEventListener("click", function() {
+                        markNotificationRead(item, true);
+                    });
+                }
+                headerList.appendChild(block);
+            }
+        }
+
+        async function markNotificationRead(item, rerenderAfter) {
+            if (!item || item.is_read || !item.mark_read_url) {
+                return;
+            }
+            item.is_read = true;
+            currentUnreadCount = Math.max(0, currentUnreadCount - 1);
+            updateBadges(currentUnreadCount);
+            if (rerenderAfter) {
+                renderHeaderList();
+            }
+            try {
+                await fetch(item.mark_read_url, {
+                    method: "POST",
+                    keepalive: true,
+                    headers: {
+                        "X-CSRFToken": getCsrfToken(),
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                });
+            } catch (error) {
+                // Ignore transient mark read failures; next poll will resync unread count.
+            }
+        }
+
+        function showEmergencyPopup(item) {
+            if (!canReceiveEmergencyPopup) {
+                return;
+            }
+            if (item.is_read) {
+                return;
+            }
+            if (!item.is_new_emergency_alert) {
+                return;
+            }
+            if (isAdmin) {
+                if (!(item.target_type === "admin")) {
+                    return;
+                }
+            } else if (role === "responder") {
+                if (!(item.target_type === "responder")) {
+                    return;
+                }
+            } else {
+                return;
+            }
+            if (seenEmergencyIds.has(Number(item.id))) {
+                return;
+            }
+            seenEmergencyIds.add(Number(item.id));
+            saveSeenEmergencyIds();
+            let container = document.getElementById("live-emergency-container");
+            if (!container) {
+                container = document.createElement("div");
+                container.id = "live-emergency-container";
+                container.style.position = "fixed";
+                container.style.top = "80px";
+                container.style.right = "20px";
+                container.style.zIndex = "2000";
+                container.style.width = "min(92vw, 420px)";
+                document.body.appendChild(container);
+            }
+            const alert = document.createElement("div");
+            alert.className = "alert alert-danger shadow border border-light mb-2";
+            alert.innerHTML = [
+                '<div class="d-flex justify-content-between align-items-start gap-2">',
+                '  <div>',
+                '    <strong><i class="fa fa-exclamation-triangle me-1"></i>Emergency Alert</strong>',
+                `    <p class="mb-1 small">#${item.incident_id} ${escapeHtml(item.incident_title || item.subject)}</p>`,
+                `    <p class="mb-1 small">${escapeHtml(item.message)}</p>`,
+                '    <div class="d-flex gap-2 mt-2">',
+                `       <a class="btn btn-sm btn-light popup-open-link" href="${item.detail_url}">Open Incident</a>`,
+                '       <button type="button" class="btn btn-sm btn-outline-light popup-read-btn">Mark read</button>',
+                "    </div>",
+                "  </div>",
+                '  <button type="button" class="btn-close btn-close-white" aria-label="Close"></button>',
+                "</div>"
+            ].join("");
+            const closeBtn = alert.querySelector(".btn-close");
+            closeBtn.addEventListener("click", function() {
+                alert.remove();
+            });
+            const popupOpen = alert.querySelector(".popup-open-link");
+            if (popupOpen) {
+                popupOpen.addEventListener("click", function() {
+                    markNotificationRead(item, false);
+                });
+            }
+            const popupRead = alert.querySelector(".popup-read-btn");
+            if (popupRead) {
+                popupRead.addEventListener("click", function() {
+                    markNotificationRead(item, true);
+                    alert.remove();
+                });
+            }
+            container.prepend(alert);
+            while (container.children.length > 4) {
+                container.removeChild(container.lastChild);
+            }
+            setTimeout(function() {
+                if (alert.parentNode) {
+                    alert.remove();
+                }
+            }, 25000);
+            playSirenWarning();
+        }
+
+        function upsertNotifications(items) {
+            for (const item of items) {
+                recentItems = recentItems.filter((row) => row.id !== item.id);
+                recentItems.unshift(item);
+                showEmergencyPopup(item);
+            }
+            if (recentItems.length > maxDropdownItems) {
+                recentItems = recentItems.slice(0, maxDropdownItems);
+            }
+            renderHeaderList();
+        }
+
+        async function markAllRead() {
+            try {
+                const response = await fetch("{% url 'disaster_management:notification_mark_all_read' %}", {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": getCsrfToken(),
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                });
+                if (!response.ok) {
+                    return;
+                }
+                recentItems = recentItems.map((row) => ({ ...row, is_read: true }));
+                currentUnreadCount = 0;
+                updateBadges(currentUnreadCount);
+                renderHeaderList();
+            } catch (error) {
+                // Ignore notification mark read failures.
+            }
+        }
+
+        async function pollNotifications() {
+            try {
+                const response = await fetch("{% url 'disaster_management:notification_feed' %}?since_id=" + latestId, {
+                    headers: { "X-Requested-With": "XMLHttpRequest" }
+                });
+                if (!response.ok) {
+                    return;
+                }
+                const data = await response.json();
+                const newItems = Array.isArray(data.items) ? data.items : [];
+                latestId = Math.max(latestId, data.latest_id || 0);
+                upsertNotifications(newItems);
+                currentUnreadCount = data.unread_count || 0;
+                updateBadges(currentUnreadCount);
+            } catch (error) {
+                // Keep UI silent on transient notification polling failures.
+            }
+        }
+
+        createHeaderNotificationDropdown();
+        try {
+            createResponderAvailabilityToggle();
+        } catch (error) {
+            // Keep notifications active even if availability UI fails.
+        }
+        try {
+            stabilizeNavbarDropdowns();
+        } catch (error) {
+            // Keep notifications active even if dropdown stabilization fails.
+        }
+        if (markAllReadBtn) {
+            markAllReadBtn.addEventListener("click", markAllRead);
+        }
+        document.addEventListener("click", ensureAudioContext, { once: true });
+        document.addEventListener("keydown", ensureAudioContext, { once: true });
+        pollNotifications();
+        setInterval(pollNotifications, 8000);
+    })();
+    </script>
+    {% endif %}
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Incident History{% endblock %}
+
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+    <nav class="navbar bg-secondary navbar-dark">
+        <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+            <h3 class="text-primary"><i class="fa fa-user-edit me-2"></i>CRDR</h3>
+        </a>
+        {% include "includes/sidebar_links.html" with active_menu="incident_history" %}
+    </nav>
+</div>
+
+<div class="content">
+    <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+        <a href="#" class="sidebar-toggler flex-shrink-0"><i class="fa fa-bars"></i></a>
+        <div class="navbar-nav align-items-center ms-auto">
+            {% include "includes/topbar_notifications.html" %}
+            <div class="nav-item dropdown">
+                <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                    <img class="rounded-circle me-lg-2" src="{% if request.user.profile.profile_photo %}{{ request.user.profile.profile_photo.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
+                    <span class="d-none d-lg-inline-flex">{{ request.user.get_full_name|default:request.user.username }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0">
+                    <a href="{% url 'disaster_management:profile_edit' %}" class="dropdown-item">My Profile</a>
+                    <form method="post" action="{% url 'disaster_management:logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item">Log Out</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-2">
+            <div class="bg-secondary rounded p-3 d-flex align-items-center justify-content-between">
+                <div><p class="mb-1">Total History</p><h6 class="mb-0">{{ summary_counts.total }}</h6></div>
+                <i class="fa fa-archive text-primary"></i>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-2">
+            <div class="bg-secondary rounded p-3 d-flex align-items-center justify-content-between">
+                <div><p class="mb-1">Closed</p><h6 class="mb-0">{{ summary_counts.closed }}</h6></div>
+                <i class="fa fa-check-circle text-success"></i>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-2">
+            <div class="bg-secondary rounded p-3 d-flex align-items-center justify-content-between">
+                <div><p class="mb-1">Rejected</p><h6 class="mb-0">{{ summary_counts.rejected }}</h6></div>
+                <i class="fa fa-times-circle text-warning"></i>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-2">
+            <div class="bg-secondary rounded p-3 d-flex align-items-center justify-content-between">
+                <div><p class="mb-1">Emergency</p><h6 class="mb-0">{{ summary_counts.emergency }}</h6></div>
+                <i class="fa fa-bolt text-danger"></i>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-2">
+            <div class="bg-secondary rounded p-3 d-flex align-items-center justify-content-between">
+                <div><p class="mb-1">Normal</p><h6 class="mb-0">{{ summary_counts.normal }}</h6></div>
+                <i class="fa fa-list text-info"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-secondary rounded p-4 mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h5 class="mb-0">Incident History Archive</h5>
+            <span class="badge bg-dark border border-secondary">Read-Only View</span>
+        </div>
+        <form method="get" class="row g-2">
+            {% if request.user.is_superuser or is_responder %}
+            <div class="col-md-2">
+                <select name="visibility" class="form-select">
+                    {% if request.user.is_superuser %}
+                    <option value="all" {% if selected_visibility == 'all' %}selected{% endif %}>All History</option>
+                    <option value="mine" {% if selected_visibility == 'mine' %}selected{% endif %}>Reported By Me</option>
+                    {% else %}
+                    <option value="assigned" {% if selected_visibility == 'assigned' %}selected{% endif %}>My History Assignments</option>
+                    {% endif %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="incident_type" class="form-select">
+                    <option value="">All Types</option>
+                    {% for value, label in type_choices %}
+                    <option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="report_mode" class="form-select">
+                    <option value="">All Modes</option>
+                    {% for value, label in mode_choices %}
+                    <option value="{{ value }}" {% if selected_mode == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="date" name="from_date" class="form-control" value="{{ from_date }}">
+            </div>
+            <div class="col-md-2">
+                <input type="date" name="to_date" class="form-control" value="{{ to_date }}">
+            </div>
+            <div class="col-md-8">
+                <input type="text" name="q" value="{{ keyword }}" class="form-control" placeholder="Search history by title, description, address">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Apply</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{% url 'disaster_management:incident_history' %}" class="btn btn-outline-light w-100">Reset</a>
+            </div>
+        </form>
+        <p class="small text-light mt-3 mb-0">History page is view-only for admin, responder, and reporter users.</p>
+    </div>
+
+    <div class="row g-3">
+        {% for incident in incidents %}
+        <div class="col-md-6">
+            <div class="bg-secondary rounded p-4 h-100 border border-dark">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                    <div class="fw-bold">#{{ incident.id }} {{ incident.title }}</div>
+                    <div class="d-flex gap-2">
+                        {% if incident.status == 'closed' %}
+                        <span class="badge bg-success">Closed</span>
+                        {% elif incident.status == 'rejected' %}
+                        <span class="badge bg-secondary">Rejected</span>
+                        {% else %}
+                        <span class="badge bg-dark border border-secondary">{{ incident.get_status_display }}</span>
+                        {% endif %}
+                        {% if incident.report_mode == 'emergency' %}
+                        <span class="badge bg-danger">Emergency</span>
+                        {% else %}
+                        <span class="badge bg-info text-dark">Normal</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <p class="small text-light mb-2">{{ incident.description|default:"No description"|truncatewords:22 }}</p>
+                <div class="small mb-2"><strong>Type:</strong> {{ incident.get_incident_type_display }} | <strong>Severity:</strong> {{ incident.get_severity_display }}</div>
+                <div class="small mb-2"><strong>Reporter:</strong> {{ incident.reporter.username|default:"-" }}</div>
+                <div class="small mb-3">
+                    <strong>Reported:</strong> {{ incident.created_at|date:"Y-m-d H:i" }} |
+                    <strong>Updated:</strong> {{ incident.updated_at|date:"Y-m-d H:i" }}
+                </div>
+                {% if is_responder and incident.my_assignment_status %}
+                <div class="small mb-3">
+                    <span class="badge bg-dark border border-secondary">My Assignment: {{ incident.my_assignment_status }}</span>
+                </div>
+                {% endif %}
+                <a href="{% url 'disaster_management:incident_detail' incident.id %}" class="btn btn-outline-primary btn-sm">View Incident</a>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="bg-secondary rounded p-4 text-center">
+                No history incidents found for the selected filters.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+    <nav class="mt-4">
+        <ul class="pagination pagination-sm mb-0">
+            {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page=1">First</a></li>
+            <li class="page-item"><a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page={{ page_obj.previous_page_number }}">Prev</a></li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">First</span></li>
+            <li class="page-item disabled"><span class="page-link">Prev</span></li>
+            {% endif %}
+            <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page={{ page_obj.next_page_number }}">Next</a></li>
+            <li class="page-item"><a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Last</a></li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">Next</span></li>
+            <li class="page-item disabled"><span class="page-link">Last</span></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded-top p-4"><div class="row"><div class="col-12 text-center">&copy; CRDR</div></div></div>
+</div>
+</div>
+{% endblock %}

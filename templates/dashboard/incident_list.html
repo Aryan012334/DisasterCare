@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Reports{% endblock %}
+
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+    <nav class="navbar bg-secondary navbar-dark">
+        <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+            <h3 class="text-primary"><i class="fa fa-user-edit me-2"></i>CRDR</h3>
+        </a>
+        {% include "includes/sidebar_links.html" with active_menu="incident_list" %}
+    </nav>
+</div>
+
+<div class="content">
+    <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+        <a href="#" class="sidebar-toggler flex-shrink-0"><i class="fa fa-bars"></i></a>
+        <div class="navbar-nav align-items-center ms-auto">
+            {% include "includes/topbar_notifications.html" %}
+            <div class="nav-item dropdown">
+                <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                    <img class="rounded-circle me-lg-2" src="{% if request.user.profile.profile_photo %}{{ request.user.profile.profile_photo.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
+                    <span class="d-none d-lg-inline-flex">{{ request.user.get_full_name|default:request.user.username }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0">
+                    <a href="{% url 'disaster_management:profile_edit' %}" class="dropdown-item">My Profile</a>
+                    <form method="post" action="{% url 'disaster_management:logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item">Log Out</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-2">
+            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-3">
+                <div>
+                    <p class="mb-1">Total</p>
+                    <h6 class="mb-0">{{ summary_counts.total }}</h6>
+                </div>
+                <i class="fa fa-layer-group text-primary"></i>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-2">
+            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-3">
+                <div>
+                    <p class="mb-1">Active</p>
+                    <h6 class="mb-0">{{ summary_counts.active }}</h6>
+                </div>
+                <i class="fa fa-bell text-warning"></i>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-2">
+            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-3">
+                <div>
+                    <p class="mb-1">History</p>
+                    <h6 class="mb-0">{{ summary_counts.history }}</h6>
+                </div>
+                <i class="fa fa-history text-info"></i>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-2">
+            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-3">
+                <div>
+                    <p class="mb-1">Pending</p>
+                    <h6 class="mb-0">{{ summary_counts.pending }}</h6>
+                </div>
+                <i class="fa fa-hourglass-half text-warning"></i>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-2">
+            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-3">
+                <div>
+                    <p class="mb-1">Dispatched</p>
+                    <h6 class="mb-0">{{ summary_counts.dispatched }}</h6>
+                </div>
+                <i class="fa fa-shipping-fast text-primary"></i>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-2">
+            <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-3">
+                <div>
+                    <p class="mb-1">Closed</p>
+                    <h6 class="mb-0">{{ summary_counts.closed }}</h6>
+                </div>
+                <i class="fa fa-check-circle text-success"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-secondary rounded p-4 mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h5 class="mb-0">Report Board</h5>
+            <form method="get" class="d-flex flex-wrap gap-2">
+                <input type="hidden" name="visibility" value="{{ selected_visibility }}">
+                <input type="hidden" name="status" value="{{ selected_status }}">
+                <input type="hidden" name="incident_type" value="{{ selected_type }}">
+                <input type="hidden" name="report_mode" value="{{ selected_mode }}">
+                <input type="hidden" name="q" value="{{ keyword }}">
+                <input type="hidden" name="from_date" value="{{ from_date }}">
+                <input type="hidden" name="to_date" value="{{ to_date }}">
+                <button type="submit" name="scope" value="active" class="btn btn-sm {% if selected_scope == 'active' %}btn-primary{% else %}btn-outline-light{% endif %}">Open</button>
+                <button type="submit" name="scope" value="history" class="btn btn-sm {% if selected_scope == 'history' %}btn-primary{% else %}btn-outline-light{% endif %}">Past</button>
+                <button type="submit" name="scope" value="all" class="btn btn-sm {% if selected_scope == 'all' %}btn-primary{% else %}btn-outline-light{% endif %}">All</button>
+            </form>
+        </div>
+
+        <form method="get" class="row g-2">
+            <input type="hidden" name="scope" value="{{ selected_scope }}">
+            {% if request.user.is_superuser or is_responder %}
+            <div class="col-md-2">
+                <select name="visibility" class="form-select">
+                    {% if request.user.is_superuser %}
+                    <option value="all" {% if selected_visibility == 'all' %}selected{% endif %}>All Incidents</option>
+                    <option value="mine" {% if selected_visibility == 'mine' %}selected{% endif %}>Reported By Me</option>
+                    {% else %}
+                    <option value="assigned" {% if selected_visibility == 'assigned' %}selected{% endif %}>My Assignments</option>
+                    {% endif %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">All Progress</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="incident_type" class="form-select">
+                    <option value="">All Types</option>
+                    {% for value, label in type_choices %}
+                    <option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="report_mode" class="form-select">
+                    <option value="">All Report Kinds</option>
+                    {% for value, label in mode_choices %}
+                    <option value="{{ value }}" {% if selected_mode == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="date" name="from_date" class="form-control" value="{{ from_date }}">
+            </div>
+            <div class="col-md-2">
+                <input type="date" name="to_date" class="form-control" value="{{ to_date }}">
+            </div>
+            <div class="col-md-8">
+                <input type="text" name="q" value="{{ keyword }}" class="form-control" placeholder="Search by title, details, or place">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{% url 'disaster_management:incident_list' %}" class="btn btn-outline-light w-100">Reset</a>
+            </div>
+            {% if not is_reporter %}
+            <div class="col-md-2">
+                <a href="{% url 'disaster_management:incident_map' %}" class="btn btn-outline-info w-100">Open Map</a>
+            </div>
+            {% endif %}
+        </form>
+
+        {% if is_reporter %}
+        <p class="small text-light mt-3 mb-0">You only see your own reports here. Use Open for current cases and Past for completed or rejected reports.</p>
+        {% elif is_responder %}
+        <p class="small text-light mt-3 mb-0">Response team members can handle one active case at a time, then take the next one.</p>
+        <div class="mt-3 p-3 border border-secondary rounded">
+            {% if committed_assignment %}
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <div class="fw-semibold">Current Case: Report #{{ committed_incident_id }}</div>
+                    <small class="text-light">You can open and work only this report until it is closed or reassigned.</small>
+                </div>
+                <a href="{{ committed_incident_url }}" class="btn btn-primary btn-sm">Open My Current Case</a>
+            </div>
+            {% else %}
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <div class="fw-semibold">No Active Case</div>
+                    <small class="text-light">Open any assigned report and accept one task to begin.</small>
+                </div>
+                <span class="badge bg-dark border border-secondary">Waiting for task acceptance</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="bg-secondary rounded p-4">
+        <div class="table-responsive">
+            <table class="table text-start align-middle table-bordered table-hover mb-0">
+                <thead>
+                    <tr class="text-white">
+                        <th>ID</th>
+                        <th>Report</th>
+                        <th>Progress</th>
+                        <th>Type/Level</th>
+                        <th>Timeline</th>
+                        {% if is_responder %}<th>My Assignment</th>{% endif %}
+                        <th>Reported By</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for incident in incidents %}
+                    <tr>
+                        <td>#{{ incident.id }}</td>
+                        <td>
+                            <div class="fw-bold">{{ incident.title }}</div>
+                            <small class="text-light">{{ incident.address|default:"No address" }}</small>
+                            <div class="mt-1">
+                                {% if incident.report_mode == 'emergency' %}
+                                <span class="badge bg-danger">Emergency</span>
+                                {% else %}
+                                <span class="badge bg-info text-dark">Normal</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if incident.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pending</span>
+                            {% elif incident.status == 'verified' %}
+                            <span class="badge bg-primary">Verified</span>
+                            {% elif incident.status == 'dispatched' %}
+                            <span class="badge bg-info text-dark">Dispatched</span>
+                            {% elif incident.status == 'on_scene' %}
+                            <span class="badge bg-primary">On Scene</span>
+                            {% elif incident.status == 'stabilized' %}
+                            <span class="badge bg-success">Stabilized</span>
+                            {% elif incident.status == 'escalated' %}
+                            <span class="badge bg-danger">Escalated</span>
+                            {% elif incident.status == 'closed' %}
+                            <span class="badge bg-success">Closed</span>
+                            {% elif incident.status == 'rejected' %}
+                            <span class="badge bg-secondary">Rejected</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ incident.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div>{{ incident.get_incident_type_display }}</div>
+                            <small class="text-light">{{ incident.get_severity_display }}</small>
+                        </td>
+                        <td>
+                            <small class="d-block">Reported: {{ incident.created_at|date:"Y-m-d H:i" }}</small>
+                            <small class="d-block">Verified: {% if incident.verified_at %}{{ incident.verified_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</small>
+                            <small class="d-block">Dispatch: {% if incident.dispatched_at %}{{ incident.dispatched_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</small>
+                            <small class="d-block">Closed: {% if incident.closed_at %}{{ incident.closed_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</small>
+                        </td>
+                        {% if is_responder %}
+                        <td>
+                            {% if incident.my_assignment_status %}
+                            <span class="badge bg-dark border border-secondary">{{ incident.my_assignment_status }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                        <td>{{ incident.reporter.username|default:"-" }}</td>
+                        <td>
+                            {% if is_responder %}
+                                {% if incident.can_open %}
+                                <a class="btn btn-sm btn-primary" href="{% url 'disaster_management:incident_detail' incident.id %}">
+                                    {% if committed_incident_id and incident.id == committed_incident_id %}Open Committed{% else %}Open{% endif %}
+                                </a>
+                                {% else %}
+                                <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Locked</button>
+                                {% endif %}
+                            {% else %}
+                            <a class="btn btn-sm btn-primary" href="{% url 'disaster_management:incident_detail' incident.id %}">Open</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="{% if is_responder %}8{% else %}7{% endif %}" class="text-center">No incidents found for selected workflow filters.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page_obj.paginator.num_pages > 1 %}
+        <nav class="mt-3">
+            <ul class="pagination pagination-sm mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page=1">First</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page={{ page_obj.previous_page_number }}">Prev</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">First</span></li>
+                <li class="page-item disabled"><span class="page-link">Prev</span></li>
+                {% endif %}
+                <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page={{ page_obj.next_page_number }}">Next</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?{% if pagination_query %}{{ pagination_query }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Last</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                <li class="page-item disabled"><span class="page-link">Last</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded-top p-4"><div class="row"><div class="col-12 text-center">&copy; CRDR</div></div></div>
+</div>
+</div>
+{% endblock %}

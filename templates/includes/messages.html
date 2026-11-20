@@ -1,0 +1,36 @@
+{% if messages %}
+<div class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1080; width: min(92%, 680px);">
+    {% for message in messages %}
+    <div class="alert {% if 'error' in message.tags %}alert-danger rdms-auto-fade-2s{% elif 'warning' in message.tags %}alert-warning{% elif 'success' in message.tags %}alert-success rdms-auto-fade-2s{% else %}alert-info{% endif %} alert-dismissible fade show mb-2" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+</div>
+<script>
+(function () {
+    function autoFadeMessages() {
+        const alerts = document.querySelectorAll(".rdms-auto-fade-2s");
+        if (!alerts.length) {
+            return;
+        }
+        alerts.forEach(function (alertEl) {
+            setTimeout(function () {
+                alertEl.classList.remove("show");
+                setTimeout(function () {
+                    if (alertEl.parentNode) {
+                        alertEl.remove();
+                    }
+                }, 350);
+            }, 2000);
+        });
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", autoFadeMessages, { once: true });
+    } else {
+        autoFadeMessages();
+    }
+})();
+</script>
+{% endif %}

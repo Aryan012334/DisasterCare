@@ -1,0 +1,543 @@
+﻿{% extends "base.html" %}
+{% load static %}
+
+{% block title %}CRDR - Dashboard{% endblock %}
+{% block extra_head %}
+<style>
+    .rdms-role-shell {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .rdms-role-shell::before {
+        content: "";
+        position: absolute;
+        inset: auto -100px -90px auto;
+        width: 260px;
+        height: 260px;
+        border-radius: 50%;
+        opacity: 0.15;
+        pointer-events: none;
+        background: radial-gradient(circle, rgba(var(--rdms-accent-rgb), 0.95) 0%, rgba(var(--rdms-accent-rgb), 0.04) 70%);
+    }
+    .rdms-role-admin {
+        --rdms-accent-rgb: 246, 173, 85;
+    }
+    .rdms-role-responder {
+        --rdms-accent-rgb: 56, 178, 172;
+    }
+    .rdms-role-reporter {
+        --rdms-accent-rgb: 99, 179, 237;
+    }
+    .rdms-role-badge {
+        background-color: rgba(var(--rdms-accent-rgb), 0.2);
+        border: 1px solid rgba(var(--rdms-accent-rgb), 0.55);
+        color: #e9eef5;
+    }
+    .rdms-focus-item {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 0.35rem;
+        background: rgba(0, 0, 0, 0.18);
+        padding: 0.6rem 0.75rem;
+        font-size: 0.85rem;
+        color: #d8dee7;
+        min-height: 56px;
+    }
+    .rdms-dashboard-card {
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+    }
+    .rdms-dashboard-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(var(--rdms-accent-rgb), 0.55);
+        box-shadow: 0 10px 18px rgba(0, 0, 0, 0.2);
+    }
+    .rdms-quick-action {
+        border-radius: 999px;
+        border-color: rgba(var(--rdms-accent-rgb), 0.62);
+        color: #f1f5f9;
+    }
+    .rdms-quick-action:hover {
+        background-color: rgba(var(--rdms-accent-rgb), 0.22);
+        border-color: rgba(var(--rdms-accent-rgb), 0.8);
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+    <nav class="navbar bg-secondary navbar-dark">
+        <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+            <h3 class="text-primary"><i class="fa fa-user-edit me-2"></i>CRDR</h3>
+        </a>
+        {% include "includes/sidebar_links.html" with active_menu="dashboard" %}
+    </nav>
+</div>
+
+<div class="content">
+    <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+        <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand d-flex d-lg-none me-4">
+            <h2 class="text-primary mb-0"><i class="fa fa-user-edit"></i></h2>
+        </a>
+        <a href="#" class="sidebar-toggler flex-shrink-0">
+            <i class="fa fa-bars"></i>
+        </a>
+        <form class="d-none d-md-flex ms-4">
+            <input class="form-control bg-dark border-0" type="search" placeholder="Search">
+        </form>
+        <div class="navbar-nav align-items-center ms-auto">
+            {% include "includes/topbar_notifications.html" %}
+            <div class="nav-item dropdown">
+                <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                    <img class="rounded-circle me-lg-2" src="{% if profile_photo_url %}{{ profile_photo_url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
+                    <span class="d-none d-lg-inline-flex">{{ display_name }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0">
+                    <a href="{% url 'disaster_management:profile_edit' %}" class="dropdown-item">My Profile</a>
+                    <form method="post" action="{% url 'disaster_management:logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item">Log Out</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    {% if request.user.profile.role == 'responder' %}
+    <div class="modal fade" id="responderCheckinModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-secondary text-light">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title">Response Team Check-In</h5>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-warning mb-3">{{ responder_checkin_reason|default:"Update your availability and location." }}</p>
+                    <form id="responderCheckinForm" novalidate>
+                        {% csrf_token %}
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="responderAvailableSwitch" {% if responder_is_available %}checked{% endif %}>
+                            <label class="form-check-label" for="responderAvailableSwitch">Available for nearby task alerts</label>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <label class="form-label">Latitude</label>
+                                <input type="number" step="0.000001" class="form-control" id="responderLatInput" value="{{ responder_latitude }}">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Longitude</label>
+                                <input type="number" step="0.000001" class="form-control" id="responderLonInput" value="{{ responder_longitude }}">
+                            </div>
+                            <div class="col-12">
+                                <button type="button" class="btn btn-outline-light btn-sm" id="responderUseLocationBtn">Use Current Location</button>
+                            </div>
+                        </div>
+                        <div id="responderCheckinStatus" class="small mt-3"></div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="submit" class="btn btn-primary">Save Update</button>
+                            <a href="{% url 'disaster_management:profile_edit' %}" class="btn btn-outline-light">Open Full Profile</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="rdms-role-{{ dashboard_role_theme }}">
+    <div class="container-fluid pt-4 px-4">
+        <div class="bg-secondary rounded p-4 rdms-role-shell rdms-role-{{ dashboard_role_theme }}">
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+                <div>
+                    <span class="badge rounded-pill rdms-role-badge mb-2">{{ role_label }}</span>
+                    <h5 class="mb-1">{{ dashboard_intro_title }}</h5>
+                    <p class="small text-light mb-0">{{ dashboard_intro_text }}</p>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for action in dashboard_quick_actions %}
+                    <a href="{{ action.url }}" class="btn btn-sm btn-outline-light rdms-quick-action">{{ action.label }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% if dashboard_focus_items %}
+            <div class="row g-2 mt-2">
+                {% for item in dashboard_focus_items %}
+                <div class="col-12 col-lg-4">
+                    <div class="rdms-focus-item">{{ item }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if is_admin %}
+    <div class="container-fluid pt-4 px-4">
+        <div class="row g-4">
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-chart-line fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Today Reports</p>
+                        <h6 class="mb-0">{{ today_reports }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-bell fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Active Alerts</p>
+                        <h6 class="mb-0">{{ active_alerts }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-clipboard-check fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Pending Incident Reviews</p>
+                        <h6 class="mb-0">{{ pending_incidents }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-envelope-open-text fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Unread Notifications</p>
+                        <h6 class="mb-0">{{ unread_notifications }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-users fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Approved Responders</p>
+                        <h6 class="mb-0">{{ total_responders }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-check-circle fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Resolved Incidents</p>
+                        <h6 class="mb-0">{{ resolved_count }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-user-clock fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Pending User Verifications</p>
+                        <h6 class="mb-0">{{ pending_user_verifications }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-hourglass-half fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Open Status Enquiries</p>
+                        <h6 class="mb-0">{{ open_status_enquiries }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-6">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-stopwatch fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Avg Verify Time (min)</p>
+                        <h6 class="mb-0">{{ avg_verify_minutes }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-6">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-shipping-fast fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Avg Dispatch Time (min)</p>
+                        <h6 class="mb-0">{{ avg_dispatch_minutes }}</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% elif is_responder %}
+    <div class="container-fluid pt-4 px-4">
+        <div class="row g-4">
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-bullhorn fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">New Task Requests</p>
+                        <h6 class="mb-0">{{ my_new_assignment_requests }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-briefcase-medical fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">My Active Tasks</p>
+                        <h6 class="mb-0">{{ my_active_assignments }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-award fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">My Score</p>
+                        <h6 class="mb-0">{{ my_response_points|default:0 }} points</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-envelope-open-text fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Unread Notifications</p>
+                        <h6 class="mb-0">{{ unread_notifications }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-4">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-check-double fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Completed Tasks</p>
+                        <h6 class="mb-0">{{ my_completed_tasks }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-4">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-chart-line fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Today Reports (System)</p>
+                        <h6 class="mb-0">{{ today_reports }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-4">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-trophy fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">My Rank</p>
+                        <h6 class="mb-0">#{{ my_rank|default:"-" }}</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="container-fluid pt-4 px-4">
+        <div class="row g-4">
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-file-medical fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Reports Today</p>
+                        <h6 class="mb-0">{{ today_reports }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-spinner fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Reports In Progress</p>
+                        <h6 class="mb-0">{{ my_open_reports }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-check-circle fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Reports Closed</p>
+                        <h6 class="mb-0">{{ my_closed_reports }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-envelope-open-text fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Unread Notifications</p>
+                        <h6 class="mb-0">{{ unread_notifications }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-6">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-search fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">Pending Review</p>
+                        <h6 class="mb-0">{{ my_pending_review_reports }}</h6>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-6">
+                <div class="bg-secondary rounded d-flex align-items-center justify-content-between p-4 rdms-dashboard-card">
+                    <i class="fa fa-bell fa-3x text-primary"></i>
+                    <div class="ms-3">
+                        <p class="mb-2">My Active Alerts</p>
+                        <h6 class="mb-0">{{ active_alerts }}</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if is_admin or is_responder %}
+    <div class="container-fluid pt-4 px-4">
+        <div class="bg-secondary rounded p-4">
+            <h6 class="mb-3">Top Response Team Scores</h6>
+            <div class="table-responsive">
+                <table class="table text-start align-middle table-bordered table-hover mb-0">
+                    <thead><tr class="text-white"><th>Rank</th><th>Team Member</th><th>Score</th><th>Completed Tasks</th></tr></thead>
+                    <tbody>
+                        {% for responder in top_responders %}
+                        <tr>
+                            <td>#{{ forloop.counter }}</td>
+                            <td>{{ responder.full_name|default:responder.user.username }}</td>
+                            <td>{{ responder.response_points }}</td>
+                            <td>{{ responder.completed_incidents }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center">No responder performance data yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    </div>
+{% endblock %}
+
+{% block footer %}
+    <div class="container-fluid pt-4 px-4">
+        <div class="bg-secondary rounded-top p-4">
+            <div class="row">
+                <div class="col-12 col-sm-6 text-center text-sm-start">
+                    &copy; <a href="#">CRDR</a>, All Right Reserved.
+                </div>
+                <div class="col-12 col-sm-6 text-center text-sm-end">
+                    Designed By Inszoft
+                    <br>Distributed By Inszoft
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<a href="#" class="btn btn-lg btn-primary btn-lg-square back-to-top"><i class="bi bi-arrow-up"></i></a>
+{% endblock %}
+
+{% block extra_js %}
+{% if request.user.profile.role == 'responder' %}
+<script>
+(function () {
+    const modalEl = document.getElementById("responderCheckinModal");
+    if (!modalEl) {
+        return;
+    }
+    const formEl = document.getElementById("responderCheckinForm");
+    const availabilityEl = document.getElementById("responderAvailableSwitch");
+    const latEl = document.getElementById("responderLatInput");
+    const lonEl = document.getElementById("responderLonInput");
+    const useLocationBtn = document.getElementById("responderUseLocationBtn");
+    const statusEl = document.getElementById("responderCheckinStatus");
+    const shouldOpenPopup = {{ show_responder_checkin_popup|yesno:"true,false" }};
+    const updateUrl = "{% url 'disaster_management:disaster_management_api:set_responder_availability' %}";
+    const csrfToken = (document.querySelector("input[name='csrfmiddlewaretoken']") || {}).value || "";
+    const modal = new bootstrap.Modal(modalEl);
+
+    function setStatus(text, tone) {
+        if (!statusEl) {
+            return;
+        }
+        statusEl.className = "small mt-3";
+        if (tone === "error") {
+            statusEl.classList.add("text-danger");
+        } else if (tone === "success") {
+            statusEl.classList.add("text-success");
+        } else {
+            statusEl.classList.add("text-warning");
+        }
+        statusEl.textContent = text;
+    }
+
+    useLocationBtn.addEventListener("click", function () {
+        if (!navigator.geolocation) {
+            setStatus("Location access is not supported in this browser.", "error");
+            return;
+        }
+        setStatus("Fetching your current location...", "warning");
+        navigator.geolocation.getCurrentPosition(
+            function (pos) {
+                latEl.value = pos.coords.latitude.toFixed(6);
+                lonEl.value = pos.coords.longitude.toFixed(6);
+                availabilityEl.checked = true;
+                setStatus("Location captured. Save update to continue.", "success");
+            },
+            function () {
+                setStatus("Unable to fetch location. Allow location permission and try again.", "error");
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+        );
+    });
+
+    formEl.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        const formData = new FormData();
+        formData.set("is_available", availabilityEl.checked ? "on" : "off");
+        formData.set("latitude", (latEl.value || "").trim());
+        formData.set("longitude", (lonEl.value || "").trim());
+
+        if (availabilityEl.checked && (!formData.get("latitude") || !formData.get("longitude"))) {
+            setStatus("Latitude and longitude are required when availability is ON.", "error");
+            return;
+        }
+
+        try {
+            const response = await fetch(updateUrl, {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": csrfToken,
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                body: formData
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                setStatus(data.message || "Unable to update responder availability.", "error");
+                return;
+            }
+            setStatus(data.message || "Responder availability updated.", "success");
+            setTimeout(function () {
+                window.location.reload();
+            }, 700);
+        } catch (error) {
+            setStatus("Network error. Please try again.", "error");
+        }
+    });
+
+    if (shouldOpenPopup) {
+        modal.show();
+    }
+})();
+</script>
+{% endif %}
+{% endblock %}
+
+
+

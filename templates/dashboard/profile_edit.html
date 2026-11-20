@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Profile Settings{% endblock %}
+
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+    <nav class="navbar bg-secondary navbar-dark">
+        <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+            <h3 class="text-primary"><i class="fa fa-user-edit me-2"></i>CRDR</h3>
+        </a>
+        {% include "includes/sidebar_links.html" with active_menu="profile" %}
+    </nav>
+</div>
+
+<div class="content">
+    <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+        <a href="#" class="sidebar-toggler flex-shrink-0">
+            <i class="fa fa-bars"></i>
+        </a>
+        <div class="navbar-nav align-items-center ms-auto">
+            {% include "includes/topbar_notifications.html" %}
+            <div class="nav-item dropdown">
+                <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                    <img class="rounded-circle me-lg-2" src="{% if request.user.profile.profile_photo %}{{ request.user.profile.profile_photo.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
+                    <span class="d-none d-lg-inline-flex">{{ request.user.get_full_name|default:request.user.username }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0">
+                    <a href="{% url 'disaster_management:profile_edit' %}" class="dropdown-item">My Profile</a>
+                    <form method="post" action="{% url 'disaster_management:logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item">Log Out</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <div class="bg-secondary rounded p-4 h-100">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+                    <h5 class="mb-0">Profile Details</h5>
+                    <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#passwordModal">
+                        Change Password
+                    </button>
+                </div>
+
+                <div class="mb-4 text-center">
+                    <img class="rounded-circle" src="{% if profile_photo_url %}{{ profile_photo_url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 110px; height: 110px; object-fit: cover;">
+                    <div class="mt-2">{{ display_name }}</div>
+                    <span class="badge bg-primary">{{ role_label }}</span>
+                </div>
+
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="profile_update">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">First name</label>
+                            {{ user_form.first_name }}
+                            {% for error in user_form.first_name.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Last name</label>
+                            {{ user_form.last_name }}
+                            {% for error in user_form.last_name.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Email</label>
+                            {{ user_form.email }}
+                            {% for error in user_form.email.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                        </div>
+                        {% if profile_form.profile_photo %}
+                        <div class="col-md-12">
+                            <label class="form-label">Profile photo</label>
+                            {{ profile_form.profile_photo }}
+                            {% for error in profile_form.profile_photo.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {% if responder_form %}
+                        <div class="col-md-12">
+                            <div class="alert alert-warning mb-0">
+                                Responder workflow requires daily check-in with availability and location.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Responder Name</label>
+                            {{ responder_form.full_name }}
+                            {% for error in responder_form.full_name.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Responder Phone</label>
+                            {{ responder_form.phone_number }}
+                            {% for error in responder_form.phone_number.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Responder Skills</label>
+                            {{ responder_form.skills }}
+                            {% for error in responder_form.skills.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-check mt-4">
+                                {{ responder_form.is_available }}
+                                <label class="form-check-label ms-1">Available</label>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Latitude</label>
+                            {{ responder_form.latitude }}
+                            {% for error in responder_form.latitude.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Longitude</label>
+                            {{ responder_form.longitude }}
+                            {% for error in responder_form.longitude.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                        </div>
+                        <div class="col-md-12 d-flex flex-wrap gap-2 align-items-center">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="captureResponderLocation()">Use Current Location</button>
+                            <small class="text-light">Last check-in: {{ request.user.responder_profile.last_checkin_at|default:"Never" }}</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% for error in user_form.non_field_errors %}<p class="text-danger mt-2 mb-0">{{ error }}</p>{% endfor %}
+                    {% for error in profile_form.non_field_errors %}<p class="text-danger mt-2 mb-0">{{ error }}</p>{% endfor %}
+                    <button type="submit" class="btn btn-primary mt-4">Save Profile</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="bg-secondary rounded p-4 mb-4">
+                <h6 class="mb-3">Security</h6>
+                <p class="small text-light mb-3">Keep your account secure by changing password regularly.</p>
+                <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#passwordModal">
+                    Open Password Form
+                </button>
+            </div>
+
+            {% if can_request_responder_upgrade %}
+            <div class="bg-secondary rounded p-4">
+                <h6 class="mb-3">Become a Responder</h6>
+                {% if latest_upgrade_request %}
+                <p class="mb-2">
+                    Latest Request:
+                    {% if latest_upgrade_request.status == 'pending' %}
+                    <span class="badge bg-warning text-dark">Pending Admin Review</span>
+                    {% elif latest_upgrade_request.status == 'approved' %}
+                    <span class="badge bg-success">Approved</span>
+                    {% else %}
+                    <span class="badge bg-danger">Rejected</span>
+                    {% endif %}
+                </p>
+                <p class="small text-light mb-3">Submitted on {{ latest_upgrade_request.created_at|date:"Y-m-d H:i" }}</p>
+                {% if latest_upgrade_request.admin_note %}
+                <p class="small mb-3"><strong>Admin note:</strong> {{ latest_upgrade_request.admin_note }}</p>
+                {% endif %}
+                {% endif %}
+
+                {% if not latest_upgrade_request or latest_upgrade_request.status != 'pending' %}
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="upgrade_request">
+                    <div class="mb-2">
+                        <label class="form-label">Full Name</label>
+                        {{ upgrade_request_form.full_name }}
+                        {% for error in upgrade_request_form.full_name.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Phone</label>
+                        {{ upgrade_request_form.phone_number }}
+                        {% for error in upgrade_request_form.phone_number.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Skills</label>
+                        {{ upgrade_request_form.skills }}
+                        {% for error in upgrade_request_form.skills.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Reason (optional)</label>
+                        {{ upgrade_request_form.reason }}
+                        {% for error in upgrade_request_form.reason.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                    </div>
+                    {% for error in upgrade_request_form.non_field_errors %}<p class="text-danger mb-2">{{ error }}</p>{% endfor %}
+                    <button type="submit" class="btn btn-success btn-sm">Submit for Admin Approval</button>
+                </form>
+                {% else %}
+                <p class="small text-light mb-0">Your request is pending. Admin will validate your details before role upgrade.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="passwordModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-secondary text-light">
+            <div class="modal-header border-0">
+                <h5 class="modal-title">Update Password</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="password_change">
+                    <div class="mb-3">
+                        <label class="form-label">Current Password</label>
+                        {{ password_form.old_password }}
+                        {% for error in password_form.old_password.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">New Password</label>
+                        {{ password_form.new_password1 }}
+                        {% for error in password_form.new_password1.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Confirm New Password</label>
+                        {{ password_form.new_password2 }}
+                        {% for error in password_form.new_password2.errors %}<p class="text-danger mb-0">{{ error }}</p>{% endfor %}
+                    </div>
+                    {% for error in password_form.non_field_errors %}<p class="text-danger mb-2">{{ error }}</p>{% endfor %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Update Password</button>
+                        <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded-top p-4">
+        <div class="row">
+            <div class="col-12 text-center">&copy; CRDR</div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function captureResponderLocation() {
+    if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser.");
+        return;
+    }
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            const latInput = document.getElementById("id_latitude");
+            const lonInput = document.getElementById("id_longitude");
+            if (latInput && lonInput) {
+                latInput.value = position.coords.latitude.toFixed(6);
+                lonInput.value = position.coords.longitude.toFixed(6);
+            }
+        },
+        function() {
+            alert("Unable to fetch your location.");
+        }
+    );
+}
+
+(function () {
+    const modalEl = document.getElementById("passwordModal");
+    if (!modalEl) {
+        return;
+    }
+    const passwordModal = new bootstrap.Modal(modalEl);
+    const shouldOpenPasswordModal = {{ open_password_modal|yesno:"true,false" }};
+    if (shouldOpenPasswordModal) {
+        passwordModal.show();
+    }
+})();
+</script>
+{% endblock %}

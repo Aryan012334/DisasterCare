@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}User Verifications{% endblock %}
+
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+    <nav class="navbar bg-secondary navbar-dark">
+        <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+            <h3 class="text-primary"><i class="fa fa-user-edit me-2"></i>CRDR</h3>
+        </a>
+        {% include "includes/sidebar_links.html" with active_menu="verifications" %}
+    </nav>
+</div>
+
+<div class="content">
+    <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+        <a href="#" class="sidebar-toggler flex-shrink-0">
+            <i class="fa fa-bars"></i>
+        </a>
+        <div class="navbar-nav align-items-center ms-auto">
+            {% include "includes/topbar_notifications.html" %}
+            <div class="nav-item dropdown">
+                <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+                    <img class="rounded-circle me-lg-2" src="{% if request.user.profile.profile_photo %}{{ request.user.profile.profile_photo.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}" alt="" style="width: 40px; height: 40px; object-fit: cover;">
+                    <span class="d-none d-lg-inline-flex">{{ request.user.get_full_name|default:request.user.username }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end bg-secondary border-0 rounded-0 rounded-bottom m-0">
+                    <a href="{% url 'disaster_management:profile_edit' %}" class="dropdown-item">My Profile</a>
+                    <form method="post" action="{% url 'disaster_management:logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="dropdown-item">Log Out</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded p-4 mb-4">
+        <h5 class="mb-1">Approval Center</h5>
+        <p class="mb-0 text-light">Review responder sign-ups and reporter-to-responder requests.</p>
+    </div>
+
+    <div class="bg-secondary rounded p-4 mb-4">
+        <h6 class="mb-3">Pending Responder Sign-Up Approvals</h6>
+        <div class="row g-4">
+            {% for profile in pending_profiles %}
+            <div class="col-12 col-xl-6">
+                <div class="border border-secondary rounded p-3 h-100">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <img
+                            class="rounded-circle"
+                            src="{% if profile.profile_photo %}{{ profile.profile_photo.url }}{% else %}{% static 'img/user.jpg' %}{% endif %}"
+                            alt="profile"
+                            style="width: 72px; height: 72px; object-fit: cover;"
+                        >
+                        <div>
+                            <h6 class="mb-1">{{ profile.user.username }}</h6>
+                            <p class="mb-0 text-light">{{ profile.user.email }}</p>
+                            <span class="badge bg-info text-dark mt-2">{{ profile.get_role_display }}</span>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6"><strong>User ID:</strong> {{ profile.user.id }}</div>
+                        <div class="col-md-6"><strong>Requested:</strong> {{ profile.created_at|date:"Y-m-d H:i" }}</div>
+                        <div class="col-md-6"><strong>First Name:</strong> {{ profile.user.first_name|default:"-" }}</div>
+                        <div class="col-md-6"><strong>Last Name:</strong> {{ profile.user.last_name|default:"-" }}</div>
+                    </div>
+
+                    {% if profile.role == 'responder' and profile.user.responder_profile %}
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6"><strong>Responder Name:</strong> {{ profile.user.responder_profile.full_name|default:"-" }}</div>
+                        <div class="col-md-6"><strong>Phone:</strong> {{ profile.user.responder_profile.phone_number|default:"-" }}</div>
+                        <div class="col-md-12"><strong>Skills:</strong> {{ profile.user.responder_profile.skills|default:"-" }}</div>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex gap-2">
+                        <form method="post" action="{% url 'disaster_management:approve_user' profile.user.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success btn-sm">Approve</button>
+                        </form>
+                        <form method="post" action="{% url 'disaster_management:reject_user' profile.user.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12">
+                <div class="border border-secondary rounded p-3 text-center">No pending responder sign-ups.</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="bg-secondary rounded p-4">
+        <h6 class="mb-3">Pending Reporter to Responder Requests</h6>
+        <div class="table-responsive">
+            <table class="table text-start align-middle table-bordered table-hover mb-0">
+                <thead>
+                    <tr class="text-white">
+                        <th>User</th>
+                        <th>Requested At</th>
+                        <th>Contact</th>
+                        <th>Skills / Reason</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in pending_upgrade_requests %}
+                    <tr>
+                        <td>
+                            <strong>{{ req.user.username }}</strong><br>
+                            <small>{{ req.user.email }}</small>
+                        </td>
+                        <td>{{ req.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>
+                            <div>{{ req.full_name }}</div>
+                            <small>{{ req.phone_number }}</small>
+                        </td>
+                        <td>
+                            <div><strong>Skills:</strong> {{ req.skills|default:"-" }}</div>
+                            <div><strong>Reason:</strong> {{ req.reason|default:"-" }}</div>
+                        </td>
+                        <td>
+                            <form method="post" action="{% url 'disaster_management:approve_responder_upgrade' req.id %}" class="mb-2">
+                                {% csrf_token %}
+                                <input type="text" name="admin_note" class="form-control form-control-sm mb-1" placeholder="Optional admin note">
+                                <button type="submit" class="btn btn-success btn-sm w-100">Approve Upgrade</button>
+                            </form>
+                            <form method="post" action="{% url 'disaster_management:reject_responder_upgrade' req.id %}">
+                                {% csrf_token %}
+                                <input type="text" name="admin_note" class="form-control form-control-sm mb-1" placeholder="Optional rejection note">
+                                <button type="submit" class="btn btn-danger btn-sm w-100">Reject Upgrade</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center">No pending role upgrade requests.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<div class="container-fluid pt-4 px-4">
+    <div class="bg-secondary rounded-top p-4">
+        <div class="row">
+            <div class="col-12 text-center">
+                &copy; CRDR - Admin Verification
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}

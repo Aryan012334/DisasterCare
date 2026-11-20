@@ -1,0 +1,18 @@
+<div class="sidebar pe-4 pb-3">
+    <nav class="navbar bg-secondary navbar-dark">
+        <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+            <h3 class="text-primary"><i class="fa fa-user-edit me-2"></i>CRDR</h3>
+        </a>
+        <div class="navbar-nav w-100">
+            <a href="{% url 'disaster_management:dashboard_home' %}" class="nav-item nav-link {% if active_menu == 'dashboard' %}active{% endif %}"><i class="fa fa-tachometer-alt me-2"></i>Dashboard</a>
+            <a href="{% url 'disaster_management:incident_report' %}" class="nav-item nav-link {% if active_menu == 'incident_report' %}active{% endif %}"><i class="fa fa-exclamation-triangle me-2"></i>Report Incident</a>
+            <a href="{% url 'disaster_management:incident_list' %}" class="nav-item nav-link {% if active_menu == 'incident_list' %}active{% endif %}"><i class="fa fa-list me-2"></i>Incident List</a>
+            {% if request.user.is_superuser or request.user.profile.role == 'responder' %}
+            <a href="{% url 'disaster_management:notification_list' %}" class="nav-item nav-link {% if active_menu == 'notifications' %}active{% endif %}"><i class="fa fa-bell me-2"></i>Notifications</a>
+            {% endif %}
+            {% if request.user.is_superuser %}
+            <a href="{% url 'disaster_management:verification_list' %}" class="nav-item nav-link {% if active_menu == 'verifications' %}active{% endif %}"><i class="fa fa-user-check me-2"></i>User Verifications</a>
+            {% endif %}
+        </div>
+    </nav>
+</div>
