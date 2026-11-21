@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – Resource Requests{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="resources" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+  </nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="text-white mb-0"><i class="fa fa-clipboard-list me-2 text-info"></i>Resource Requests</h4>
+    <a href="{% url 'disaster_management:resource_request_create' %}" class="btn btn-info btn-sm"><i class="fa fa-plus me-1"></i>New Request</a>
+  </div>
+
+  <form method="get" class="bg-secondary rounded p-3 mb-3">
+    <div class="d-flex gap-2 align-items-end">
+      <select name="status" class="form-select form-select-sm bg-dark text-white border-0" style="width:200px;">
+        <option value="">All Statuses</option>
+        {% for val,label in status_choices %}<option value="{{ val }}" {% if selected_status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary btn-sm"><i class="fa fa-filter me-1"></i>Filter</button>
+      <a href="{% url 'disaster_management:resource_requests' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+    </div>
+  </form>
+
+  <div class="bg-secondary rounded">
+    <div class="table-responsive">
+      <table class="table table-dark table-hover mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Resource</th>
+            <th>Requested</th>
+            <th>Approved</th>
+            <th>Purpose</th>
+            <th>Requested By</th>
+            <th>Status</th>
+            {% if request.user.is_superuser %}<th>Actions</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for req in page_obj %}
+          <tr>
+            <td class="text-muted small">{{ req.id }}</td>
+            <td class="text-white">{{ req.resource.name }}<div class="text-muted small">{{ req.resource.get_unit_display }}</div></td>
+            <td class="text-white">{{ req.quantity_requested }}</td>
+            <td class="text-success">{% if req.quantity_approved %}{{ req.quantity_approved }}{% else %}–{% endif %}</td>
+            <td class="text-muted small">{{ req.purpose|truncatechars:40 }}</td>
+            <td class="text-muted small">{% if req.requested_by %}{{ req.requested_by.get_full_name|default:req.requested_by.username }}{% else %}–{% endif %}</td>
+            <td>
+              <span class="badge {% if req.status == 'pending' %}bg-warning text-dark{% elif req.status == 'approved' %}bg-info{% elif req.status == 'dispatched' %}bg-primary{% elif req.status == 'delivered' %}bg-success{% else %}bg-danger{% endif %}">{{ req.get_status_display }}</span>
+            </td>
+            {% if request.user.is_superuser %}
+            <td>
+              {% if req.status == 'pending' %}
+              <form method="post" action="{% url 'disaster_management:resource_request_action' req.id %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="approve">
+                <input type="number" name="quantity_approved" value="{{ req.quantity_requested }}" min="1" max="{{ req.quantity_requested }}" class="form-control form-control-sm bg-dark text-white border-secondary d-inline" style="width:70px;">
+                <button type="submit" class="btn btn-sm btn-outline-success">Approve</button>
+              </form>
+              <form method="post" action="{% url 'disaster_management:resource_request_action' req.id %}" class="d-inline">
+                {% csrf_token %}<input type="hidden" name="action" value="reject">
+                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Reject?')">Reject</button>
+              </form>
+              {% elif req.status == 'approved' %}
+              <form method="post" action="{% url 'disaster_management:resource_request_action' req.id %}">
+                {% csrf_token %}<input type="hidden" name="action" value="dispatch">
+                <button type="submit" class="btn btn-sm btn-outline-primary">Dispatch</button>
+              </form>
+              {% elif req.status == 'dispatched' %}
+              <form method="post" action="{% url 'disaster_management:resource_request_action' req.id %}">
+                {% csrf_token %}<input type="hidden" name="action" value="deliver">
+                <button type="submit" class="btn btn-sm btn-outline-success">Mark Delivered</button>
+              </form>
+              {% else %}–{% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="{% if request.user.is_superuser %}8{% else %}7{% endif %}" class="text-center text-muted py-4">No resource requests found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

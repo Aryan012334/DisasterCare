@@ -1,96 +1,144 @@
-# CRDR (Django Disaster Response Platform)
+# DisasterCare
 
-CRDR is a Django-based incident response system with role-based workflows for:
-- Reporter users (report incidents)
-- Responder users (accept tasks, update field status, submit final review)
-- Admin users (verify, dispatch, moderate, and close incidents)
+**India-Based Disaster Management and Emergency Response Coordination System**
+
+DisasterCare is a full-stack Django platform for disaster prevention, early warning, incident response, evacuation coordination and relief management across all Indian states and union territories.
+
+---
 
 ## Features
-- Authentication with role-aware registration and approval flow
-- Incident reporting (normal and emergency)
-- Responder assignment and live status workflow
-- Escalation flow with nearby responder notifications
-- Final review and admin closure workflow
-- Fake incident review/moderation flow
-- Password reset with OTP
 
-## Project Structure
-- `manage.py` - Django entry point
-- `rdms/` - project settings and URLs
-- `diaster_management_app/` - main app (models, views, forms, tests)
-- `templates/` - HTML templates
-- `static/` - static assets
-- `media/` - uploaded files (ignored in git)
+### India-Wide Geographic Coverage
+- All 28 states and 8 union territories with 144+ districts seeded
+- Interactive India map (Leaflet) showing active incidents, risk zones and shelters
+- District-level drill-down and geographic filtering
 
-## Local Setup
+### Disaster Risk Assessment
+- 15 pre-seeded disaster risk zones across India (flood, cyclone, earthquake, drought, landslide, heatwave, forest fire, tsunami)
+- Risk scoring (0–100), population-at-risk tracking, historical records
+- Mitigation task management with progress tracking
+- Risk level classification: Low / Moderate / High / Very High
 
-### 1. Create and activate virtual environment
-Windows (PowerShell):
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
+### Early Warning System
+- Issue and manage official warnings (NDMA SACHET, IMD, CWC, INCOIS or manual)
+- Warning severity levels: Advisory, Watch, Warning, Extreme Alert
+- State and district targeting
+- In-app notification delivery
 
-Linux/macOS:
+### Incident Reporting & Rescue Coordination
+- Normal and emergency (fast-track) incident reporting with GPS
+- Full workflow: Report → Verify → Dispatch → On Scene → Stabilize → Escalate → Close
+- Responder assignment, acceptance and declination
+- Duplicate detection, fake-report moderation
+- AI-based triage (severity, incident type, risk score)
+- Photo and media attachments
+
+### Evacuation & Shelter Management
+- 10 pre-seeded emergency shelters across India
+- Real-time capacity and occupancy tracking
+- Facility flags: food, water, electricity, sanitation, medical, wheelchair access
+- Evacuation plan creation, shelter assignment and plan activation
+
+### Relief Resource Management
+- Inventory across 5 categories: Food & Water, Medical, Clothing, Rescue Equipment, Communication
+- 16 pre-seeded resources with stock levels
+- Resource request → approve → dispatch → deliver workflow
+- Atomic reservation to prevent double-allocation
+- Low-stock alerts
+
+### Role-Based Dashboards
+- **National Admin**: India-wide map, incident type breakdown, state-wise counts, warnings, low-stock alerts
+- **Responder**: Assignment queue, active commitments, rankings, map
+- **Reporter**: My reports, status tracking, notifications
+
+### Additional
+- OTP-based password reset via email
+- Responder upgrade requests and approval
+- Status enquiry workflow with overdue action
+- Notification feed with real-time badge updates
+
+---
+
+## Quick Start
+
+### Prerequisites
+- Python 3.11+
+- pip
+
+### Setup
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-```
+git clone https://github.com/Aryan012334/DisasterCare.git
+cd DisasterCare
 
-### 2. Install dependencies
-```bash
 pip install -r requirements.txt
-```
 
-### 3. Configure environment
-```bash
 cp .env.example .env
-```
+# Edit .env and fill in DJANGO_EMAIL_HOST_USER and DJANGO_EMAIL_HOST_PASSWORD
 
-For local development without SMTP credentials, set:
-- `DJANGO_EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend`
-
-This avoids startup errors when `DJANGO_DEBUG=True`.
-
-### 4. Apply migrations
-```bash
 python manage.py migrate
-```
-
-### 5. (Optional) Create admin user
-```bash
+python manage.py seed_india_data
 python manage.py createsuperuser
-```
-
-### 6. Run server
-```bash
 python manage.py runserver
 ```
 
-## Run Tests
-```bash
-python manage.py test
-```
+Open http://127.0.0.1:8000 and log in with your superuser account.
 
-## Git Upload Checklist
-- Keep secrets out of git (`.env` is ignored).
-- Keep runtime/local files out of git (`db.sqlite3`, `media/`, caches are ignored).
-- Review `.gitignore` before first commit.
+---
 
-Optional cleanup before first push:
+## Environment Variables
 
-Windows (PowerShell):
-```powershell
-Get-ChildItem -Recurse -Directory -Filter __pycache__
-Get-ChildItem -Recurse -File -Include *.pyc
-```
+| Variable | Description | Default |
+|---|---|---|
+| `DJANGO_SECRET_KEY` | Secret key (required in production) | Dev key |
+| `DJANGO_DEBUG` | Debug mode | `True` |
+| `DJANGO_ALLOWED_HOSTS` | Comma-separated hosts | `127.0.0.1,localhost` |
+| `DJANGO_EMAIL_HOST_USER` | SMTP email address | — |
+| `DJANGO_EMAIL_HOST_PASSWORD` | SMTP password | — |
+| `DJANGO_EMAIL_HOST` | SMTP host | `smtp.gmail.com` |
+| `DJANGO_EMAIL_PORT` | SMTP port | `587` |
 
-Linux/macOS:
-```bash
-find . -type d -name "__pycache__"
-find . -type f -name "*.pyc"
-```
+See `.env.example` for the full list.
 
-## Notes
-- Main app folder is named `diaster_management_app` (spelling kept as-is in current codebase).
-- Default DB is SQLite (`db.sqlite3`).
+---
+
+## Seed Data
+
+The `seed_india_data` command loads:
+- 36 states and union territories
+- 144 districts across major states
+- 15 disaster risk zones (flood, cyclone, earthquake, etc.)
+- 10 emergency shelters
+- 16 relief resources across 5 categories
+- 3 demo early warnings
+
+Re-run safely at any time — it uses `update_or_create` and will not duplicate records.
+
+---
+
+## Data Sources
+
+- **Geographic data**: Coordinates from public domain India administrative boundary records
+- **Risk zones**: Based on NDMA hazard zonation maps and published vulnerability atlases
+- **Early warnings**: Manual import; integration-ready for NDMA SACHET, IMD, CWC and INCOIS APIs
+- **Demo data**: Clearly labelled; replace with live data for production
+
+---
+
+## Deployment Notes
+
+For production:
+- Set `DJANGO_DEBUG=False` and `DJANGO_SECRET_KEY` to a strong random value
+- Set `DJANGO_ALLOWED_HOSTS` to your domain
+- Run `python manage.py collectstatic`
+- Use gunicorn + nginx or any WSGI host
+- Switch `DATABASES` to PostgreSQL for production workloads
+
+---
+
+## Tech Stack
+
+- **Backend**: Django 6.x, SQLite (dev) / PostgreSQL (prod)
+- **Frontend**: Bootstrap 5, Chart.js, Leaflet (maps), Font Awesome
+- **Maps**: OpenStreetMap tiles via Leaflet
+- **Auth**: Email-based login, OTP password reset

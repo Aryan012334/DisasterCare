@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – {{ shelter.name }}{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="shelters" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+  </nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="mb-3"><a href="{% url 'disaster_management:shelter_list' %}" class="text-muted small"><i class="fa fa-arrow-left me-1"></i>Back to Shelters</a></div>
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="bg-secondary rounded p-4">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h4 class="text-white mb-1">{{ shelter.name }}</h4>
+            <div class="text-muted small">{{ shelter.address }}</div>
+            {% if shelter.state %}<div class="text-muted small">{{ shelter.state.name }}{% if shelter.district %} · {{ shelter.district.name }}{% endif %}</div>{% endif %}
+          </div>
+          <span class="badge {% if shelter.status == 'active' %}bg-success{% elif shelter.status == 'full' %}bg-danger{% elif shelter.status == 'closed' %}bg-secondary{% else %}bg-warning text-dark{% endif %} fs-6">{{ shelter.get_status_display }}</span>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-3 text-center bg-dark rounded py-2">
+            <div class="fs-4 fw-bold text-white">{{ shelter.capacity }}</div>
+            <div class="text-muted small">Total Capacity</div>
+          </div>
+          <div class="col-sm-3 text-center bg-dark rounded py-2">
+            <div class="fs-4 fw-bold {% if shelter.occupancy_percent >= 90 %}text-danger{% else %}text-info{% endif %}">{{ shelter.current_occupancy }}</div>
+            <div class="text-muted small">Occupied</div>
+          </div>
+          <div class="col-sm-3 text-center bg-dark rounded py-2">
+            <div class="fs-4 fw-bold text-success">{{ shelter.available_capacity }}</div>
+            <div class="text-muted small">Available</div>
+          </div>
+          <div class="col-sm-3 text-center bg-dark rounded py-2">
+            <div class="fs-4 fw-bold text-warning">{{ shelter.occupancy_percent }}%</div>
+            <div class="text-muted small">Full</div>
+          </div>
+        </div>
+
+        <div class="progress mb-3" style="height:10px;">
+          <div class="progress-bar {% if shelter.occupancy_percent >= 90 %}bg-danger{% elif shelter.occupancy_percent >= 70 %}bg-warning{% else %}bg-success{% endif %}"
+            style="width:{{ shelter.occupancy_percent }}%"></div>
+        </div>
+
+        <h6 class="text-white mt-3">Facilities</h6>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <span class="badge {% if shelter.has_food %}bg-success{% else %}bg-secondary{% endif %} p-2"><i class="fa fa-utensils me-1"></i>Food</span>
+          <span class="badge {% if shelter.has_water %}bg-info{% else %}bg-secondary{% endif %} p-2"><i class="fa fa-tint me-1"></i>Drinking Water</span>
+          <span class="badge {% if shelter.has_electricity %}bg-warning text-dark{% else %}bg-secondary{% endif %} p-2"><i class="fa fa-bolt me-1"></i>Electricity</span>
+          <span class="badge {% if shelter.has_sanitation %}bg-primary{% else %}bg-secondary{% endif %} p-2"><i class="fa fa-toilet me-1"></i>Sanitation</span>
+          <span class="badge {% if shelter.has_medical %}bg-danger{% else %}bg-secondary{% endif %} p-2"><i class="fa fa-medkit me-1"></i>Medical</span>
+          <span class="badge {% if shelter.is_accessible %}bg-info{% else %}bg-secondary{% endif %} p-2"><i class="fa fa-wheelchair me-1"></i>Accessible</span>
+        </div>
+
+        {% if shelter.managed_by %}
+        <div class="text-muted small mb-1"><strong class="text-white">Managed by:</strong> {{ shelter.managed_by }}</div>
+        {% endif %}
+        {% if shelter.contact_phone %}
+        <div class="text-muted small"><strong class="text-white">Contact:</strong> {{ shelter.contact_phone }}</div>
+        {% endif %}
+        <div class="text-muted small mt-1">Coordinates: {{ shelter.latitude }}, {{ shelter.longitude }}</div>
+
+        {% if request.user.is_superuser %}
+        <div class="mt-4 pt-3 border-top border-secondary">
+          <h6 class="text-white mb-3">Update Occupancy</h6>
+          <form method="post" action="{% url 'disaster_management:shelter_update_occupancy' shelter.id %}" class="d-flex gap-2 align-items-end flex-wrap">
+            {% csrf_token %}
+            <div>
+              <label class="form-label text-muted small mb-1">Current Occupancy</label>
+              <input type="number" name="current_occupancy" value="{{ shelter.current_occupancy }}" min="0" max="{{ shelter.capacity }}" class="form-control form-control-sm bg-dark text-white border-secondary" style="width:100px;">
+            </div>
+            <div>
+              <label class="form-label text-muted small mb-1">Status</label>
+              <select name="status" class="form-select form-select-sm bg-dark text-white border-secondary">
+                <option value="active" {% if shelter.status == 'active' %}selected{% endif %}>Active</option>
+                <option value="full" {% if shelter.status == 'full' %}selected{% endif %}>Full</option>
+                <option value="standby" {% if shelter.status == 'standby' %}selected{% endif %}>Standby</option>
+                <option value="closed" {% if shelter.status == 'closed' %}selected{% endif %}>Closed</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-success mb-0">Update</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="bg-secondary rounded p-3">
+        <h6 class="text-white mb-3"><i class="fa fa-route me-1 text-info"></i>Evacuation Plans Using This Shelter</h6>
+        {% for plan in evacuation_plans %}
+        <div class="bg-dark rounded p-2 mb-2">
+          <div class="text-white small fw-bold">{{ plan.title }}</div>
+          <div class="text-muted small">{{ plan.get_status_display }} · {{ plan.created_at|date:"d M Y" }}</div>
+          <a href="{% url 'disaster_management:evacuation_detail' plan.id %}" class="btn btn-sm btn-outline-info mt-1">View Plan</a>
+        </div>
+        {% empty %}
+        <p class="text-muted small">No evacuation plans linked to this shelter.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

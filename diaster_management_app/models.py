@@ -5,6 +5,354 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 
+# ---------------------------------------------------------------------------
+# India Geographic Reference Models
+# ---------------------------------------------------------------------------
+
+class IndianState(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=10, unique=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    is_union_territory = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ("name",)
+
+    def __str__(self):
+        return self.name
+
+
+class IndianDistrict(models.Model):
+    state = models.ForeignKey(IndianState, on_delete=models.CASCADE, related_name="districts")
+    name = models.CharField(max_length=100)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
+    class Meta:
+        ordering = ("name",)
+        unique_together = ("state", "name")
+
+    def __str__(self):
+        return f"{self.name}, {self.state.name}"
+
+
+# ---------------------------------------------------------------------------
+# Disaster Risk Assessment
+# ---------------------------------------------------------------------------
+
+class DisasterRiskZone(models.Model):
+    class RiskLevel(models.TextChoices):
+        LOW = "low", "Low"
+        MODERATE = "moderate", "Moderate"
+        HIGH = "high", "High"
+        VERY_HIGH = "very_high", "Very High"
+
+    class HazardType(models.TextChoices):
+        FLOOD = "flood", "Flood"
+        CYCLONE = "cyclone", "Cyclone"
+        EARTHQUAKE = "earthquake", "Earthquake"
+        DROUGHT = "drought", "Drought"
+        LANDSLIDE = "landslide", "Landslide"
+        HEATWAVE = "heatwave", "Heatwave"
+        FOREST_FIRE = "forest_fire", "Forest Fire"
+        TSUNAMI = "tsunami", "Tsunami"
+        INDUSTRIAL = "industrial", "Industrial Hazard"
+        OTHER = "other", "Other"
+
+    state = models.ForeignKey(IndianState, on_delete=models.SET_NULL, null=True, blank=True, related_name="risk_zones")
+    district = models.ForeignKey(IndianDistrict, on_delete=models.SET_NULL, null=True, blank=True, related_name="risk_zones")
+    name = models.CharField(max_length=255)
+    hazard_type = models.CharField(max_length=30, choices=HazardType.choices, default=HazardType.FLOOD)
+    risk_level = models.CharField(max_length=20, choices=RiskLevel.choices, default=RiskLevel.MODERATE)
+    risk_score = models.FloatField(default=50.0, help_text="0-100 composite risk score")
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    radius_km = models.FloatField(default=10.0)
+    population_at_risk = models.PositiveIntegerField(default=0)
+    description = models.TextField(blank=True)
+    historical_incidents = models.PositiveIntegerField(default=0)
+    last_disaster_year = models.PositiveIntegerField(null=True, blank=True)
+    preventive_measures = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-risk_score",)
+
+    def __str__(self):
+        return f"{self.name} ({self.get_hazard_type_display()} - {self.get_risk_level_display()})"
+
+
+class MitigationTask(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        IN_PROGRESS = "in_progress", "In Progress"
+        COMPLETED = "completed", "Completed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    class Priority(models.TextChoices):
+        LOW = "low", "Low"
+        MEDIUM = "medium", "Medium"
+        HIGH = "high", "High"
+        URGENT = "urgent", "Urgent"
+
+    risk_zone = models.ForeignKey(DisasterRiskZone, on_delete=models.CASCADE, related_name="mitigation_tasks")
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    priority = models.CharField(max_length=20, choices=Priority.choices, default=Priority.MEDIUM)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    assigned_to = models.CharField(max_length=255, blank=True, help_text="Department or agency responsible")
+    due_date = models.DateField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    progress_percent = models.PositiveSmallIntegerField(default=0)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.title} [{self.get_status_display()}]"
+
+
+# ---------------------------------------------------------------------------
+# Early Warning System
+# ---------------------------------------------------------------------------
+
+class EarlyWarning(models.Model):
+    class Severity(models.TextChoices):
+        ADVISORY = "advisory", "Advisory"
+        WATCH = "watch", "Watch"
+        WARNING = "warning", "Warning"
+        EXTREME = "extreme", "Extreme Alert"
+
+    class DisasterType(models.TextChoices):
+        FLOOD = "flood", "Flood"
+        CYCLONE = "cyclone", "Cyclone"
+        EARTHQUAKE = "earthquake", "Earthquake"
+        DROUGHT = "drought", "Drought"
+        LANDSLIDE = "landslide", "Landslide"
+        HEATWAVE = "heatwave", "Heatwave"
+        FOREST_FIRE = "forest_fire", "Forest Fire"
+        TSUNAMI = "tsunami", "Tsunami"
+        STORM = "storm", "Thunderstorm/Lightning"
+        COLD_WAVE = "cold_wave", "Cold Wave"
+        OTHER = "other", "Other"
+
+    class Source(models.TextChoices):
+        NDMA = "ndma", "NDMA SACHET"
+        IMD = "imd", "IMD (India Meteorological Dept)"
+        CWC = "cwc", "CWC (Central Water Commission)"
+        INCOIS = "incois", "INCOIS (Tsunami Alerts)"
+        MANUAL = "manual", "Manual Entry by Admin"
+        OTHER = "other", "Other Official Source"
+
+    title = models.CharField(max_length=255)
+    disaster_type = models.CharField(max_length=30, choices=DisasterType.choices)
+    severity = models.CharField(max_length=20, choices=Severity.choices, default=Severity.ADVISORY)
+    source = models.CharField(max_length=20, choices=Source.choices, default=Source.MANUAL)
+    source_url = models.URLField(blank=True)
+    affected_states = models.ManyToManyField(IndianState, blank=True, related_name="warnings")
+    affected_districts = models.ManyToManyField(IndianDistrict, blank=True, related_name="warnings")
+    description = models.TextField()
+    safety_instructions = models.TextField(blank=True)
+    issued_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    is_verified = models.BooleanField(default=False)
+    issued_by = models.ForeignKey(
+        get_user_model(), on_delete=models.SET_NULL, null=True, blank=True, related_name="issued_warnings"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-issued_at",)
+
+    def __str__(self):
+        return f"{self.title} [{self.get_severity_display()}]"
+
+    @property
+    def is_expired(self):
+        if self.expires_at is None:
+            return False
+        return timezone.now() > self.expires_at
+
+
+# ---------------------------------------------------------------------------
+# Shelter Management
+# ---------------------------------------------------------------------------
+
+class Shelter(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        FULL = "full", "Full"
+        CLOSED = "closed", "Closed"
+        STANDBY = "standby", "On Standby"
+
+    name = models.CharField(max_length=255)
+    address = models.TextField()
+    state = models.ForeignKey(IndianState, on_delete=models.SET_NULL, null=True, blank=True, related_name="shelters")
+    district = models.ForeignKey(IndianDistrict, on_delete=models.SET_NULL, null=True, blank=True, related_name="shelters")
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    capacity = models.PositiveIntegerField(default=0)
+    current_occupancy = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.STANDBY)
+    has_food = models.BooleanField(default=False)
+    has_water = models.BooleanField(default=False)
+    has_electricity = models.BooleanField(default=False)
+    has_sanitation = models.BooleanField(default=False)
+    has_medical = models.BooleanField(default=False)
+    is_accessible = models.BooleanField(default=True, help_text="Accessible for differently-abled persons")
+    contact_phone = models.CharField(max_length=20, blank=True)
+    managed_by = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("name",)
+
+    def __str__(self):
+        return f"{self.name} ({self.current_occupancy}/{self.capacity})"
+
+    @property
+    def available_capacity(self):
+        return max(0, self.capacity - self.current_occupancy)
+
+    @property
+    def occupancy_percent(self):
+        if self.capacity == 0:
+            return 0
+        return min(100, int(self.current_occupancy * 100 / self.capacity))
+
+
+class EvacuationPlan(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        ACTIVE = "active", "Active"
+        COMPLETED = "completed", "Completed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    incident = models.ForeignKey(
+        "Incident", on_delete=models.CASCADE, null=True, blank=True, related_name="evacuation_plans"
+    )
+    title = models.CharField(max_length=255)
+    state = models.ForeignKey(IndianState, on_delete=models.SET_NULL, null=True, blank=True, related_name="evacuation_plans")
+    district = models.ForeignKey(IndianDistrict, on_delete=models.SET_NULL, null=True, blank=True, related_name="evacuation_plans")
+    description = models.TextField(blank=True)
+    affected_population = models.PositiveIntegerField(default=0)
+    shelters = models.ManyToManyField(Shelter, blank=True, related_name="evacuation_plans")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        get_user_model(), on_delete=models.SET_NULL, null=True, blank=True, related_name="evacuation_plans"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.title} [{self.get_status_display()}]"
+
+
+# ---------------------------------------------------------------------------
+# Relief Resource Management
+# ---------------------------------------------------------------------------
+
+class ResourceCategory(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    icon = models.CharField(max_length=50, blank=True, default="fa-box")
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("name",)
+        verbose_name_plural = "Resource Categories"
+
+    def __str__(self):
+        return self.name
+
+
+class ReliefResource(models.Model):
+    class Unit(models.TextChoices):
+        UNITS = "units", "Units"
+        KG = "kg", "Kilograms"
+        LITRES = "litres", "Litres"
+        PACKETS = "packets", "Packets"
+        BOXES = "boxes", "Boxes"
+        SETS = "sets", "Sets"
+
+    category = models.ForeignKey(ResourceCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="resources")
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    unit = models.CharField(max_length=20, choices=Unit.choices, default=Unit.UNITS)
+    quantity_available = models.PositiveIntegerField(default=0)
+    quantity_reserved = models.PositiveIntegerField(default=0)
+    minimum_stock = models.PositiveIntegerField(default=0, help_text="Alert when stock falls below this")
+    state = models.ForeignKey(IndianState, on_delete=models.SET_NULL, null=True, blank=True, related_name="resources")
+    district = models.ForeignKey(IndianDistrict, on_delete=models.SET_NULL, null=True, blank=True, related_name="resources")
+    location_name = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("name",)
+
+    def __str__(self):
+        return f"{self.name} ({self.quantity_available} {self.unit})"
+
+    @property
+    def quantity_free(self):
+        return max(0, self.quantity_available - self.quantity_reserved)
+
+    @property
+    def is_low_stock(self):
+        return self.quantity_available <= self.minimum_stock
+
+
+class ResourceRequest(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        DISPATCHED = "dispatched", "Dispatched"
+        DELIVERED = "delivered", "Delivered"
+
+    incident = models.ForeignKey(
+        "Incident", on_delete=models.SET_NULL, null=True, blank=True, related_name="resource_requests"
+    )
+    resource = models.ForeignKey(ReliefResource, on_delete=models.CASCADE, related_name="requests")
+    requested_by = models.ForeignKey(
+        get_user_model(), on_delete=models.SET_NULL, null=True, blank=True, related_name="resource_requests"
+    )
+    quantity_requested = models.PositiveIntegerField()
+    quantity_approved = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    purpose = models.TextField(blank=True)
+    admin_note = models.TextField(blank=True)
+    approved_by = models.ForeignKey(
+        get_user_model(), on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_resource_requests"
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"Request {self.id}: {self.resource.name} x{self.quantity_requested} [{self.get_status_display()}]"
+
+
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -29,6 +377,11 @@ class Incident(TimeStampedModel):
         FLOOD = "flood", "Flood"
         EARTHQUAKE = "earthquake", "Earthquake"
         LANDSLIDE = "landslide", "Landslide"
+        CYCLONE = "cyclone", "Cyclone"
+        DROUGHT = "drought", "Drought"
+        HEATWAVE = "heatwave", "Heatwave"
+        FOREST_FIRE = "forest_fire", "Forest Fire"
+        TSUNAMI = "tsunami", "Tsunami"
         ROAD_ACCIDENT = "road_accident", "Road Accident"
         MEDICAL = "medical", "Medical Emergency"
         OTHER = "other", "Other"
@@ -62,6 +415,12 @@ class Incident(TimeStampedModel):
     severity = models.CharField(max_length=20, choices=Severity.choices, default=Severity.MEDIUM)
     description = models.TextField(blank=True)
     address = models.CharField(max_length=255, blank=True)
+    state = models.ForeignKey(
+        "IndianState", on_delete=models.SET_NULL, null=True, blank=True, related_name="incidents"
+    )
+    district = models.ForeignKey(
+        "IndianDistrict", on_delete=models.SET_NULL, null=True, blank=True, related_name="incidents"
+    )
     occurred_at = models.DateTimeField(null=True, blank=True)
     people_affected = models.PositiveIntegerField(default=0)
     contact_phone = models.CharField(max_length=20, blank=True)
@@ -201,6 +560,12 @@ class ResponderProfile(TimeStampedModel):
     is_verified = models.BooleanField(default=False)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    state = models.ForeignKey(
+        "IndianState", on_delete=models.SET_NULL, null=True, blank=True, related_name="responders"
+    )
+    district = models.ForeignKey(
+        "IndianDistrict", on_delete=models.SET_NULL, null=True, blank=True, related_name="responders"
+    )
     last_checkin_at = models.DateTimeField(null=True, blank=True)
     response_points = models.PositiveIntegerField(default=0)
     completed_incidents = models.PositiveIntegerField(default=0)

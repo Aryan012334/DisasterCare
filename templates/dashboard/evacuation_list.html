@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – Evacuation Plans{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="evacuation" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+  </nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="text-white mb-0"><i class="fa fa-route me-2 text-info"></i>Evacuation Plans</h4>
+    {% if request.user.is_superuser %}
+    <a href="{% url 'disaster_management:evacuation_create' %}" class="btn btn-info btn-sm"><i class="fa fa-plus me-1"></i>Create Plan</a>
+    {% endif %}
+  </div>
+
+  <form method="get" class="bg-secondary rounded p-3 mb-3 d-flex gap-2 align-items-end">
+    <select name="status" class="form-select form-select-sm bg-dark text-white border-0" style="width:200px;">
+      <option value="">All Statuses</option>
+      {% for val,label in status_choices %}<option value="{{ val }}" {% if selected_status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    <a href="{% url 'disaster_management:evacuation_list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+  </form>
+
+  <div class="row g-3">
+    {% for plan in page_obj %}
+    <div class="col-md-6">
+      <div class="bg-secondary rounded p-3 h-100">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="text-white mb-0">{{ plan.title }}</h6>
+          <span class="badge {% if plan.status == 'active' %}bg-success{% elif plan.status == 'completed' %}bg-info{% elif plan.status == 'cancelled' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">{{ plan.get_status_display }}</span>
+        </div>
+        {% if plan.state %}<div class="text-muted small mb-1">{{ plan.state.name }}{% if plan.district %} · {{ plan.district.name }}{% endif %}</div>{% endif %}
+        {% if plan.description %}<p class="text-muted small mb-2">{{ plan.description|truncatechars:100 }}</p>{% endif %}
+        <div class="text-muted small mb-2">Population: {{ plan.affected_population }} · Shelters: {{ plan.shelters.count }}</div>
+        {% if plan.incident %}<div class="text-muted small mb-2">Linked incident: #{{ plan.incident.id }} {{ plan.incident.title|truncatechars:30 }}</div>{% endif %}
+        <div class="d-flex gap-2">
+          <a href="{% url 'disaster_management:evacuation_detail' plan.id %}" class="btn btn-sm btn-outline-info">View</a>
+          {% if request.user.is_superuser and plan.status == 'draft' %}
+          <form method="post" action="{% url 'disaster_management:evacuation_activate' plan.id %}">{% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Activate this plan?')">Activate</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12"><div class="bg-secondary rounded p-4 text-center text-muted">No evacuation plans found.</div></div>
+    {% endfor %}
+  </div>
+</div>
+</div>
+{% endblock %}

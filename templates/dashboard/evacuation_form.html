@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – Create Evacuation Plan{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="evacuation" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+  </nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="bg-secondary rounded p-4">
+        <h4 class="text-white mb-4"><i class="fa fa-route me-2 text-info"></i>{{ form_title }}</h4>
+        <form method="post">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label text-white">Plan Title <span class="text-danger">*</span></label>
+              <input type="text" name="title" required class="form-control bg-dark text-white border-secondary" placeholder="e.g. Kerala Flood Evacuation Plan 2025">
+            </div>
+            <div class="col-12">
+              <label class="form-label text-white">Description</label>
+              <textarea name="description" rows="3" class="form-control bg-dark text-white border-secondary" placeholder="Detailed plan description..."></textarea>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-white">State</label>
+              <select name="state_id" id="evac-state" class="form-select bg-dark text-white border-secondary">
+                <option value="">Select State</option>
+                {% for s in states %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-white">District</label>
+              <select name="district_id" id="evac-district" class="form-select bg-dark text-white border-secondary">
+                <option value="">Select District</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-white">Affected Population</label>
+              <input type="number" name="affected_population" min="0" class="form-control bg-dark text-white border-secondary" placeholder="Estimated persons">
+            </div>
+            <div class="col-12">
+              <label class="form-label text-white">Linked Incident (optional)</label>
+              <select name="incident_id" class="form-select bg-dark text-white border-secondary">
+                <option value="">– Not linked –</option>
+                {% for inc in incidents %}<option value="{{ inc.id }}">#{{ inc.id }} – {{ inc.title }} ({{ inc.get_severity_display }})</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-white">Assign Shelters</label>
+              <select name="shelter_ids" multiple class="form-select bg-dark text-white border-secondary" style="height:130px;">
+                {% for s in shelters %}<option value="{{ s.id }}">{{ s.name }} (cap: {{ s.capacity }}){% if s.state %} – {{ s.state.name }}{% endif %}</option>{% endfor %}
+              </select>
+              <div class="text-muted small mt-1">Hold Ctrl/Cmd to select multiple.</div>
+            </div>
+            <div class="col-12 d-flex gap-2">
+              <button type="submit" class="btn btn-info"><i class="fa fa-save me-1"></i>Create Plan</button>
+              <a href="{% url 'disaster_management:evacuation_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}
+{% block footer %}
+<script>
+document.getElementById('evac-state').addEventListener('change', function() {
+  const stateId = this.value;
+  const districtSelect = document.getElementById('evac-district');
+  if (!stateId) { districtSelect.innerHTML = '<option value="">Select District</option>'; return; }
+  fetch(`{% url 'disaster_management:districts_by_state' %}?state_id=${stateId}`)
+    .then(r => r.json()).then(data => {
+      districtSelect.innerHTML = '<option value="">Select District</option>';
+      data.districts.forEach(d => { districtSelect.innerHTML += `<option value="${d.id}">${d.name}</option>`; });
+    });
+});
+</script>
+{% endblock %}

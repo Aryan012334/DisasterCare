@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – {{ warning.title }}{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="warnings" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+  </nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="mb-3">
+    <a href="{% url 'disaster_management:warning_list' %}" class="text-muted small"><i class="fa fa-arrow-left me-1"></i>Back to Warnings</a>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="bg-secondary rounded p-4" style="border-left: 5px solid {% if warning.severity == 'extreme' %}#dc3545{% elif warning.severity == 'warning' %}#ffc107{% elif warning.severity == 'watch' %}#fd7e14{% else %}#17a2b8{% endif %};">
+        <div class="d-flex flex-wrap gap-2 mb-2">
+          <span class="badge {% if warning.severity == 'extreme' %}bg-danger{% elif warning.severity == 'warning' %}bg-warning text-dark{% elif warning.severity == 'watch' %}bg-warning text-dark{% else %}bg-info{% endif %} fs-6">{{ warning.get_severity_display }}</span>
+          <span class="badge bg-dark">{{ warning.get_disaster_type_display }}</span>
+          <span class="badge bg-dark">{{ warning.get_source_display }}</span>
+          {% if warning.is_verified %}<span class="badge bg-success"><i class="fa fa-check me-1"></i>Verified</span>{% endif %}
+          {% if not warning.is_active %}<span class="badge bg-secondary">Inactive</span>{% endif %}
+        </div>
+        <h3 class="text-white mb-3">{{ warning.title }}</h3>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <div class="text-muted small">Issued</div>
+            <div class="text-white">{{ warning.issued_at|date:"d M Y, H:i" }}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="text-muted small">Expires</div>
+            <div class="text-white">{% if warning.expires_at %}{{ warning.expires_at|date:"d M Y, H:i" }}{% else %}No expiry set{% endif %}</div>
+          </div>
+          <div class="col-sm-4">
+            <div class="text-muted small">Issued By</div>
+            <div class="text-white">{% if warning.issued_by %}{{ warning.issued_by.get_full_name|default:warning.issued_by.username }}{% else %}System{% endif %}</div>
+          </div>
+        </div>
+
+        <h5 class="text-white mt-3">Description</h5>
+        <p class="text-muted">{{ warning.description }}</p>
+
+        {% if warning.safety_instructions %}
+        <div class="bg-dark rounded p-3 mt-3">
+          <h6 class="text-warning mb-2"><i class="fa fa-info-circle me-1"></i>Safety Instructions</h6>
+          <p class="text-white mb-0">{{ warning.safety_instructions }}</p>
+        </div>
+        {% endif %}
+
+        {% if warning.source_url %}
+        <div class="mt-3">
+          <a href="{{ warning.source_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info"><i class="fa fa-external-link-alt me-1"></i>Official Source</a>
+        </div>
+        {% endif %}
+
+        {% if request.user.is_superuser and warning.is_active %}
+        <div class="mt-4">
+          <form method="post" action="{% url 'disaster_management:warning_deactivate' warning.id %}">{% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate this warning?')"><i class="fa fa-times me-1"></i>Deactivate Warning</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="bg-secondary rounded p-3">
+        <h6 class="text-white mb-3"><i class="fa fa-map-marker-alt me-1 text-danger"></i>Affected Areas</h6>
+        {% if warning.affected_states.all %}
+          {% for s in warning.affected_states.all %}
+          <div class="bg-dark rounded p-2 mb-2">
+            <div class="text-white small">{{ s.name }}</div>
+            {% if s.is_union_territory %}<div class="text-muted" style="font-size:0.75rem;">Union Territory</div>{% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="text-muted small">No specific states listed – this may be a national-level alert.</p>
+        {% endif %}
+        {% if warning.affected_districts.all %}
+        <h6 class="text-white mt-3 mb-2">Districts</h6>
+        {% for d in warning.affected_districts.all %}
+        <span class="badge bg-dark border border-secondary me-1 mb-1">{{ d.name }}</span>
+        {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

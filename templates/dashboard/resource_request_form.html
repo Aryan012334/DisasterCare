@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – Request Resource{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="resources" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+  </nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <div class="bg-secondary rounded p-4">
+        <h4 class="text-white mb-4"><i class="fa fa-box me-2 text-info"></i>Request Relief Resource</h4>
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label text-white">Resource <span class="text-danger">*</span></label>
+            <select name="resource_id" required id="res-select" class="form-select bg-dark text-white border-secondary">
+              <option value="">Select a resource...</option>
+              {% for r in resources %}
+              <option value="{{ r.id }}" data-free="{{ r.quantity_free }}" data-unit="{{ r.get_unit_display }}"
+                {% if request.GET.resource_id == r.id|stringformat:"s" %}selected{% endif %}>
+                {{ r.name }} ({{ r.quantity_free }} {{ r.get_unit_display }} free) {% if r.category %}· {{ r.category.name }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            <div class="text-muted small mt-1" id="res-info"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Quantity Requested <span class="text-danger">*</span></label>
+            <input type="number" name="quantity_requested" required min="1" class="form-control bg-dark text-white border-secondary" placeholder="How many?">
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Linked Incident (optional)</label>
+            <select name="incident_id" class="form-select bg-dark text-white border-secondary">
+              <option value="">– Not linked to an incident –</option>
+              {% for inc in incidents %}<option value="{{ inc.id }}">#{{ inc.id }} – {{ inc.title }} ({{ inc.get_severity_display }})</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Purpose</label>
+            <textarea name="purpose" rows="2" class="form-control bg-dark text-white border-secondary" placeholder="Why is this resource needed?"></textarea>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-info"><i class="fa fa-paper-plane me-1"></i>Submit Request</button>
+            <a href="{% url 'disaster_management:resource_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}
+{% block footer %}
+<script>
+document.getElementById('res-select').addEventListener('change', function() {
+  const opt = this.options[this.selectedIndex];
+  const free = opt.dataset.free;
+  const unit = opt.dataset.unit;
+  const info = document.getElementById('res-info');
+  if (free !== undefined) info.textContent = free + ' ' + unit + ' available.';
+  else info.textContent = '';
+});
+</script>
+{% endblock %}

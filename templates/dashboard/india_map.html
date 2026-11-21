@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – India Disaster Map{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+#india-map { height: 68vh; min-height: 480px; border-radius: 0.5rem; }
+.map-legend { background: rgba(30,40,55,0.95); border-radius: 0.5rem; padding: 0.75rem 1rem; font-size: 0.82rem; }
+.legend-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.filter-bar { background: rgba(30,40,55,0.7); border-radius: 0.5rem; padding: 0.75rem 1rem; }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="india_map" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand d-flex d-lg-none me-4">
+      <h3 class="text-primary mb-0"><i class="fa fa-shield-alt"></i></h3>
+    </a>
+    <div class="navbar-nav align-items-center ms-auto">
+      {% include "includes/topbar_notifications.html" %}
+    </div>
+  </nav>
+{% endblock %}
+
+{% block content %}
+  <div class="container-fluid pt-4 px-4">
+    <div class="row g-3 mb-3">
+      <div class="col-12">
+        <h4 class="text-white mb-0"><i class="fa fa-map-marked-alt me-2 text-primary"></i>India Disaster Map</h4>
+        <p class="text-muted small mb-0">Live incidents, risk zones, shelters and active warnings across India.</p>
+      </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-3">
+      <div class="col-6 col-md-3">
+        <div class="bg-secondary rounded p-3 text-center">
+          <div class="fs-4 fw-bold text-danger" id="card-incidents">–</div>
+          <div class="text-muted small">Active Incidents</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="bg-secondary rounded p-3 text-center">
+          <div class="fs-4 fw-bold text-warning" id="card-warnings">{{ active_warnings|length }}</div>
+          <div class="text-muted small">Active Warnings</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="bg-secondary rounded p-3 text-center">
+          <div class="fs-4 fw-bold text-info" id="card-zones">{{ risk_zones|length }}</div>
+          <div class="text-muted small">Risk Zones</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="bg-secondary rounded p-3 text-center">
+          <div class="fs-4 fw-bold text-success" id="card-shelters">{{ shelters|length }}</div>
+          <div class="text-muted small">Shelters</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-9">
+        <div class="bg-secondary rounded p-2">
+          <!-- Filter bar -->
+          <div class="filter-bar mb-2 d-flex flex-wrap gap-2 align-items-center">
+            <label class="text-muted small mb-0">Show:</label>
+            <div class="form-check form-check-inline mb-0">
+              <input class="form-check-input" type="checkbox" id="layer-incidents" checked>
+              <label class="form-check-label text-white small" for="layer-incidents"><span class="legend-dot bg-danger"></span>Incidents</label>
+            </div>
+            <div class="form-check form-check-inline mb-0">
+              <input class="form-check-input" type="checkbox" id="layer-zones" checked>
+              <label class="form-check-label text-white small" for="layer-zones"><span class="legend-dot bg-warning"></span>Risk Zones</label>
+            </div>
+            <div class="form-check form-check-inline mb-0">
+              <input class="form-check-input" type="checkbox" id="layer-shelters" checked>
+              <label class="form-check-label text-white small" for="layer-shelters"><span class="legend-dot bg-success"></span>Shelters</label>
+            </div>
+          </div>
+          <div id="india-map"></div>
+        </div>
+      </div>
+
+      <div class="col-lg-3">
+        <!-- Active Warnings Panel -->
+        <div class="bg-secondary rounded p-3 mb-3">
+          <h6 class="text-white mb-2"><i class="fa fa-bell me-1 text-warning"></i> Active Warnings</h6>
+          {% for w in active_warnings %}
+          <a href="{% url 'disaster_management:warning_detail' w.id %}" class="d-block mb-2 text-decoration-none">
+            <div class="p-2 rounded {% if w.severity == 'extreme' %}bg-danger{% elif w.severity == 'warning' %}bg-warning{% else %}bg-dark{% endif %}" style="opacity:0.9;">
+              <div class="text-white fw-bold small">{{ w.title|truncatechars:40 }}</div>
+              <div class="text-white-50 small">{{ w.get_severity_display }} · {{ w.get_disaster_type_display }}</div>
+            </div>
+          </a>
+          {% empty %}
+          <p class="text-muted small mb-0">No active warnings.</p>
+          {% endfor %}
+          <a href="{% url 'disaster_management:warning_list' %}" class="btn btn-sm btn-outline-warning w-100 mt-2">View All Warnings</a>
+        </div>
+
+        <!-- Risk Zone Legend -->
+        <div class="map-legend text-white mb-3">
+          <div class="fw-bold mb-2">Risk Level</div>
+          <div class="mb-1"><span class="legend-dot" style="background:#dc3545"></span> Very High</div>
+          <div class="mb-1"><span class="legend-dot" style="background:#fd7e14"></span> High</div>
+          <div class="mb-1"><span class="legend-dot" style="background:#ffc107"></span> Moderate</div>
+          <div><span class="legend-dot" style="background:#28a745"></span> Low</div>
+        </div>
+
+        <div class="d-grid gap-2">
+          <a href="{% url 'disaster_management:risk_zone_list' %}" class="btn btn-outline-info btn-sm"><i class="fa fa-layer-group me-1"></i>Risk Zones</a>
+          <a href="{% url 'disaster_management:shelter_list' %}" class="btn btn-outline-success btn-sm"><i class="fa fa-home me-1"></i>Shelters</a>
+          <a href="{% url 'disaster_management:incident_map' %}" class="btn btn-outline-danger btn-sm"><i class="fa fa-map me-1"></i>Incident Map</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('india-map').setView([20.5937, 78.9629], 5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap', maxZoom: 18
+}).addTo(map);
+
+const incidentLayer = L.layerGroup();
+const zoneLayer = L.layerGroup();
+const shelterLayer = L.layerGroup();
+
+const severityColor = {critical:'#dc3545',high:'#fd7e14',medium:'#ffc107',low:'#28a745'};
+const riskColor = {very_high:'#dc3545',high:'#fd7e14',moderate:'#ffc107',low:'#28a745'};
+
+fetch("{% url 'disaster_management:india_map_data' %}")
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById('card-incidents').textContent = data.incidents.length;
+
+    data.incidents.forEach(inc => {
+      const color = severityColor[inc.severity] || '#888';
+      const marker = L.circleMarker([parseFloat(inc.latitude), parseFloat(inc.longitude)], {
+        color, fillColor: color, fillOpacity: 0.8, radius: 8, weight: 2
+      }).bindPopup(`<b>${inc.title}</b><br>Type: ${inc.incident_type}<br>Severity: ${inc.severity}<br>Status: ${inc.status}<br>${inc.address || ''}`);
+      incidentLayer.addLayer(marker);
+    });
+
+    data.risk_zones.forEach(z => {
+      const color = riskColor[z.risk_level] || '#888';
+      const circle = L.circle([z.latitude, z.longitude], {
+        color, fillColor: color, fillOpacity: 0.15,
+        radius: z.radius_km * 1000, weight: 1.5
+      }).bindPopup(`<b>${z.name}</b><br>Hazard: ${z.hazard_type}<br>Risk: ${z.risk_level}<br>Population at risk: ${z.population_at_risk.toLocaleString()}`);
+      zoneLayer.addLayer(circle);
+    });
+
+    data.shelters.forEach(s => {
+      const icon = L.divIcon({html:'<i class="fa fa-home" style="color:#28a745;font-size:18px;"></i>', className:''});
+      L.marker([s.latitude, s.longitude], {icon})
+        .bindPopup(`<b>${s.name}</b><br>Status: ${s.status}<br>Occupancy: ${s.current_occupancy}/${s.capacity}`)
+        .addTo(shelterLayer);
+    });
+
+    incidentLayer.addTo(map);
+    zoneLayer.addTo(map);
+    shelterLayer.addTo(map);
+  });
+
+document.getElementById('layer-incidents').addEventListener('change', e => {
+  e.target.checked ? map.addLayer(incidentLayer) : map.removeLayer(incidentLayer);
+});
+document.getElementById('layer-zones').addEventListener('change', e => {
+  e.target.checked ? map.addLayer(zoneLayer) : map.removeLayer(zoneLayer);
+});
+document.getElementById('layer-shelters').addEventListener('change', e => {
+  e.target.checked ? map.addLayer(shelterLayer) : map.removeLayer(shelterLayer);
+});
+</script>
+{% endblock %}

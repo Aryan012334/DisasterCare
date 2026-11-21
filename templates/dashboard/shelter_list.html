@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – Shelters{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="shelters" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+  </nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="text-white mb-0"><i class="fa fa-home me-2 text-success"></i>Shelter Management</h4>
+      <p class="text-muted small mb-0">Emergency shelters, capacity and evacuation facilities across India.</p>
+    </div>
+    {% if request.user.is_superuser %}
+    <a href="{% url 'disaster_management:shelter_create' %}" class="btn btn-success btn-sm"><i class="fa fa-plus me-1"></i>Add Shelter</a>
+    {% endif %}
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4"><div class="bg-secondary rounded p-3 text-center">
+      <div class="fs-3 fw-bold text-success">{{ active_count }}</div>
+      <div class="text-muted small">Active Shelters</div>
+    </div></div>
+    <div class="col-md-4"><div class="bg-secondary rounded p-3 text-center">
+      <div class="fs-3 fw-bold text-white">{{ total_capacity }}</div>
+      <div class="text-muted small">Total Capacity</div>
+    </div></div>
+    <div class="col-md-4"><div class="bg-secondary rounded p-3 text-center">
+      <div class="fs-3 fw-bold {% if total_occupancy > total_capacity|default:1|floatformat:0 %}text-danger{% else %}text-info{% endif %}">{{ total_occupancy }}</div>
+      <div class="text-muted small">Current Occupancy</div>
+    </div></div>
+  </div>
+
+  <form method="get" class="bg-secondary rounded p-3 mb-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3"><input type="text" name="q" value="{{ q }}" class="form-control form-control-sm bg-dark text-white border-0" placeholder="Search shelters..."></div>
+      <div class="col-md-3">
+        <select name="state" class="form-select form-select-sm bg-dark text-white border-0">
+          <option value="">All States</option>
+          {% for s in states %}<option value="{{ s.id }}" {% if selected_state == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select name="status" class="form-select form-select-sm bg-dark text-white border-0">
+          <option value="">All Status</option>
+          {% for val,label in status_choices %}<option value="{{ val }}" {% if selected_status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1"><button type="submit" class="btn btn-primary btn-sm w-100"><i class="fa fa-search"></i></button></div>
+      <div class="col-md-1"><a href="{% url 'disaster_management:shelter_list' %}" class="btn btn-outline-secondary btn-sm w-100">Clear</a></div>
+    </div>
+  </form>
+
+  <div class="row g-3">
+    {% for shelter in page_obj %}
+    <div class="col-md-6 col-xl-4">
+      <div class="bg-secondary rounded p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <h6 class="text-white mb-0">{{ shelter.name }}</h6>
+          <span class="badge {% if shelter.status == 'active' %}bg-success{% elif shelter.status == 'full' %}bg-danger{% elif shelter.status == 'closed' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">{{ shelter.get_status_display }}</span>
+        </div>
+        <div class="text-muted small mb-2">{{ shelter.state.name|default:"" }}{% if shelter.district %} · {{ shelter.district.name }}{% endif %}</div>
+
+        <div class="mb-2">
+          <div class="d-flex justify-content-between text-muted small mb-1">
+            <span>Occupancy</span>
+            <span>{{ shelter.current_occupancy }} / {{ shelter.capacity }}</span>
+          </div>
+          <div class="progress" style="height:6px;">
+            <div class="progress-bar {% if shelter.occupancy_percent >= 90 %}bg-danger{% elif shelter.occupancy_percent >= 70 %}bg-warning{% else %}bg-success{% endif %}"
+              style="width:{{ shelter.occupancy_percent }}%"></div>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-1 mb-2">
+          {% if shelter.has_food %}<span class="badge bg-dark border border-secondary small"><i class="fa fa-utensils me-1 text-success"></i>Food</span>{% endif %}
+          {% if shelter.has_water %}<span class="badge bg-dark border border-secondary small"><i class="fa fa-tint me-1 text-info"></i>Water</span>{% endif %}
+          {% if shelter.has_electricity %}<span class="badge bg-dark border border-secondary small"><i class="fa fa-bolt me-1 text-warning"></i>Power</span>{% endif %}
+          {% if shelter.has_medical %}<span class="badge bg-dark border border-secondary small"><i class="fa fa-medkit me-1 text-danger"></i>Medical</span>{% endif %}
+          {% if shelter.is_accessible %}<span class="badge bg-dark border border-secondary small"><i class="fa fa-wheelchair me-1 text-info"></i>Accessible</span>{% endif %}
+        </div>
+
+        {% if shelter.managed_by %}<div class="text-muted small mb-2">Managed by: {{ shelter.managed_by }}</div>{% endif %}
+        <a href="{% url 'disaster_management:shelter_detail' shelter.id %}" class="btn btn-sm btn-outline-success w-100">View Details</a>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12"><div class="bg-secondary rounded p-4 text-center text-muted">No shelters found.</div></div>
+    {% endfor %}
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <div class="d-flex justify-content-center mt-3">
+    <nav><ul class="pagination pagination-sm mb-0">
+      {% if page_obj.has_previous %}<li class="page-item"><a class="page-link bg-dark text-white border-secondary" href="?page={{ page_obj.previous_page_number }}&state={{ selected_state }}&status={{ selected_status }}&q={{ q }}">Prev</a></li>{% endif %}
+      <li class="page-item disabled"><a class="page-link bg-dark text-muted border-secondary">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</a></li>
+      {% if page_obj.has_next %}<li class="page-item"><a class="page-link bg-dark text-white border-secondary" href="?page={{ page_obj.next_page_number }}&state={{ selected_state }}&status={{ selected_status }}&q={{ q }}">Next</a></li>{% endif %}
+    </ul></nav>
+  </div>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

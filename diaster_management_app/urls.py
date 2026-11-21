@@ -1,6 +1,7 @@
 from django.urls import include, path
 
 from . import views
+from . import disaster_views as dv
 
 app_name = "disaster_management"
 
@@ -76,5 +77,45 @@ urlpatterns = [
         views.reject_responder_upgrade_view,
         name="reject_responder_upgrade",
     ),
+
+    # --- India-wide features ---
+    path("dashboard/india-map/", dv.india_map_view, name="india_map"),
+    path("dashboard/india-map/data/", dv.india_map_data_view, name="india_map_data"),
+    path("dashboard/national/", dv.national_dashboard_view, name="national_dashboard"),
+
+    # Risk Zones
+    path("dashboard/risk-zones/", dv.risk_zone_list_view, name="risk_zone_list"),
+    path("dashboard/risk-zones/create/", dv.risk_zone_create_view, name="risk_zone_create"),
+    path("dashboard/risk-zones/<int:zone_id>/", dv.risk_zone_detail_view, name="risk_zone_detail"),
+    path("dashboard/risk-zones/<int:zone_id>/mitigation/create/", dv.mitigation_task_create_view, name="mitigation_task_create"),
+    path("dashboard/risk-zones/mitigation/<int:task_id>/update/", dv.mitigation_task_update_view, name="mitigation_task_update"),
+
+    # Early Warnings
+    path("dashboard/warnings/", dv.warning_list_view, name="warning_list"),
+    path("dashboard/warnings/create/", dv.warning_create_view, name="warning_create"),
+    path("dashboard/warnings/<int:warning_id>/", dv.warning_detail_view, name="warning_detail"),
+    path("dashboard/warnings/<int:warning_id>/deactivate/", dv.warning_deactivate_view, name="warning_deactivate"),
+
+    # Shelters
+    path("dashboard/shelters/", dv.shelter_list_view, name="shelter_list"),
+    path("dashboard/shelters/create/", dv.shelter_create_view, name="shelter_create"),
+    path("dashboard/shelters/<int:shelter_id>/", dv.shelter_detail_view, name="shelter_detail"),
+    path("dashboard/shelters/<int:shelter_id>/occupancy/", dv.shelter_update_occupancy_view, name="shelter_update_occupancy"),
+
+    # Evacuation Plans
+    path("dashboard/evacuation/", dv.evacuation_plan_list_view, name="evacuation_list"),
+    path("dashboard/evacuation/create/", dv.evacuation_plan_create_view, name="evacuation_create"),
+    path("dashboard/evacuation/<int:plan_id>/", dv.evacuation_plan_detail_view, name="evacuation_detail"),
+    path("dashboard/evacuation/<int:plan_id>/activate/", dv.evacuation_plan_activate_view, name="evacuation_activate"),
+
+    # Relief Resources
+    path("dashboard/resources/", dv.resource_list_view, name="resource_list"),
+    path("dashboard/resources/request/", dv.resource_request_create_view, name="resource_request_create"),
+    path("dashboard/resources/requests/", dv.resource_request_list_view, name="resource_requests"),
+    path("dashboard/resources/requests/<int:req_id>/action/", dv.resource_request_action_view, name="resource_request_action"),
+
+    # AJAX
+    path("api/districts/", dv.districts_by_state_view, name="districts_by_state"),
+
     path("api/", include("diaster_management_app.api_urls")),
 ]

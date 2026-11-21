@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – {{ zone.name }}{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="risk_zones" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand d-flex d-lg-none me-4">
+      <h3 class="text-primary mb-0"><i class="fa fa-shield-alt"></i></h3>
+    </a>
+    <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+  </nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="mb-3">
+    <a href="{% url 'disaster_management:risk_zone_list' %}" class="text-muted small"><i class="fa fa-arrow-left me-1"></i>Back to Risk Zones</a>
+  </div>
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="bg-secondary rounded p-4 mb-3">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <h4 class="text-white mb-1">{{ zone.name }}</h4>
+            <div class="d-flex gap-2 flex-wrap mb-3">
+              <span class="badge bg-info">{{ zone.get_hazard_type_display }}</span>
+              {% if zone.risk_level == 'very_high' %}<span class="badge bg-danger">Very High Risk</span>
+              {% elif zone.risk_level == 'high' %}<span class="badge bg-warning text-dark">High Risk</span>
+              {% elif zone.risk_level == 'moderate' %}<span class="badge bg-secondary">Moderate Risk</span>
+              {% else %}<span class="badge bg-success">Low Risk</span>{% endif %}
+              {% if zone.state %}<span class="badge bg-dark border border-secondary">{{ zone.state.name }}</span>{% endif %}
+            </div>
+          </div>
+          <div class="text-end">
+            <div class="fs-2 fw-bold {% if zone.risk_score >= 75 %}text-danger{% elif zone.risk_score >= 55 %}text-warning{% else %}text-info{% endif %}">{{ zone.risk_score|floatformat:0 }}</div>
+            <div class="text-muted small">Risk Score / 100</div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <div class="bg-dark rounded p-2 text-center">
+              <div class="text-white fw-bold">{{ zone.population_at_risk|default:0 }}</div>
+              <div class="text-muted small">Population at Risk</div>
+            </div>
+          </div>
+          <div class="col-sm-4">
+            <div class="bg-dark rounded p-2 text-center">
+              <div class="text-white fw-bold">{{ zone.radius_km }} km</div>
+              <div class="text-muted small">Affected Radius</div>
+            </div>
+          </div>
+          <div class="col-sm-4">
+            <div class="bg-dark rounded p-2 text-center">
+              <div class="text-white fw-bold">{{ zone.historical_incidents|default:0 }}</div>
+              <div class="text-muted small">Historical Events</div>
+            </div>
+          </div>
+        </div>
+
+        {% if zone.description %}
+        <h6 class="text-white">About This Zone</h6>
+        <p class="text-muted">{{ zone.description }}</p>
+        {% endif %}
+
+        {% if zone.preventive_measures %}
+        <h6 class="text-white mt-3">Preventive Measures</h6>
+        <p class="text-muted">{{ zone.preventive_measures }}</p>
+        {% endif %}
+
+        <div class="text-muted small mt-2">
+          Coordinates: {{ zone.latitude }}, {{ zone.longitude }}
+          {% if zone.last_disaster_year %} · Last disaster: {{ zone.last_disaster_year }}{% endif %}
+        </div>
+      </div>
+
+      <!-- Nearby Active Incidents -->
+      {% if nearby_incidents %}
+      <div class="bg-secondary rounded p-3 mb-3">
+        <h6 class="text-white mb-3"><i class="fa fa-exclamation-triangle me-1 text-warning"></i>Related Active Incidents</h6>
+        {% for inc in nearby_incidents %}
+        <div class="d-flex justify-content-between align-items-center bg-dark rounded p-2 mb-2">
+          <div>
+            <div class="text-white small fw-bold">{{ inc.title }}</div>
+            <div class="text-muted small">{{ inc.get_severity_display }} · {{ inc.status }}</div>
+          </div>
+          <a href="{% url 'disaster_management:incident_detail' inc.id %}" class="btn btn-sm btn-outline-primary">View</a>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Mitigation Tasks -->
+      <div class="bg-secondary rounded p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="text-white mb-0"><i class="fa fa-tasks me-1 text-info"></i>Mitigation Tasks</h6>
+          {% if request.user.is_superuser %}
+          <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#addTaskModal">+ Add</button>
+          {% endif %}
+        </div>
+        {% for task in tasks %}
+        <div class="bg-dark rounded p-2 mb-2">
+          <div class="d-flex justify-content-between">
+            <div class="text-white small fw-semibold">{{ task.title }}</div>
+            <span class="badge {% if task.status == 'completed' %}bg-success{% elif task.status == 'in_progress' %}bg-info{% elif task.status == 'cancelled' %}bg-secondary{% else %}bg-warning text-dark{% endif %} small">{{ task.get_status_display }}</span>
+          </div>
+          <div class="text-muted small">{{ task.get_priority_display }} priority{% if task.assigned_to %} · {{ task.assigned_to }}{% endif %}</div>
+          <div class="progress mt-1" style="height:4px;">
+            <div class="progress-bar bg-info" style="width:{{ task.progress_percent }}%"></div>
+          </div>
+          {% if request.user.is_superuser and task.status != 'completed' and task.status != 'cancelled' %}
+          <form method="post" action="{% url 'disaster_management:mitigation_task_update' task.id %}" class="mt-1">
+            {% csrf_token %}
+            <div class="d-flex gap-1">
+              <select name="status" class="form-select form-select-sm bg-secondary text-white border-0" style="font-size:0.75rem;">
+                {% for val, label in task_status_choices %}<option value="{{ val }}" {% if task.status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+              <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-2">Save</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+        {% empty %}
+        <p class="text-muted small">No mitigation tasks yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+{% if request.user.is_superuser %}
+<div class="modal fade" id="addTaskModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title">Add Mitigation Task</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'disaster_management:mitigation_task_create' zone.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Title <span class="text-danger">*</span></label>
+            <input type="text" name="title" required class="form-control bg-secondary text-white border-0" placeholder="e.g. Install flood barriers">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col">
+              <label class="form-label">Priority</label>
+              <select name="priority" class="form-select bg-secondary text-white border-0">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+            <div class="col">
+              <label class="form-label">Due Date</label>
+              <input type="date" name="due_date" class="form-control bg-secondary text-white border-0">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Assigned To</label>
+            <input type="text" name="assigned_to" class="form-control bg-secondary text-white border-0" placeholder="Department/agency">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <textarea name="description" rows="2" class="form-control bg-secondary text-white border-0"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-info">Add Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

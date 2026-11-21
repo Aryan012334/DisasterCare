@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – National Dashboard{% endblock %}
+{% block extra_head %}
+<style>
+.stat-card { border: 1px solid rgba(255,255,255,0.08); transition: transform 0.2s; }
+.stat-card:hover { transform: translateY(-2px); }
+.warning-bar { border-left: 4px solid; }
+.warning-extreme { border-color: #dc3545; }
+.warning-warning { border-color: #ffc107; }
+.warning-watch { border-color: #fd7e14; }
+.warning-advisory { border-color: #17a2b8; }
+</style>
+{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="national_dashboard" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+  </nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="text-white mb-0"><i class="fa fa-globe me-2 text-primary"></i>National Command Dashboard</h3>
+      <p class="text-muted small mb-0">India-wide disaster management overview – live data.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'disaster_management:india_map' %}" class="btn btn-outline-primary btn-sm"><i class="fa fa-map me-1"></i>India Map</a>
+      <a href="{% url 'disaster_management:warning_create' %}" class="btn btn-warning btn-sm"><i class="fa fa-bell me-1"></i>Issue Warning</a>
+    </div>
+  </div>
+
+  <!-- Top KPIs -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+      <div class="bg-secondary rounded p-3 stat-card text-center">
+        <div class="fs-2 fw-bold text-danger">{{ active_incidents }}</div>
+        <div class="text-muted small">Active Incidents</div>
+        <a href="{% url 'disaster_management:incident_list' %}" class="text-muted small">View All</a>
+      </div>
+    </div>
+    <div class="col-md-3 col-6">
+      <div class="bg-secondary rounded p-3 stat-card text-center">
+        <div class="fs-2 fw-bold text-warning">{{ active_warnings|length }}</div>
+        <div class="text-muted small">Active Warnings</div>
+        <a href="{% url 'disaster_management:warning_list' %}" class="text-muted small">View All</a>
+      </div>
+    </div>
+    <div class="col-md-3 col-6">
+      <div class="bg-secondary rounded p-3 stat-card text-center">
+        <div class="fs-2 fw-bold text-danger">{{ very_high_zones }}</div>
+        <div class="text-muted small">Very High Risk Zones</div>
+        <a href="{% url 'disaster_management:risk_zone_list' %}?risk=very_high" class="text-muted small">View</a>
+      </div>
+    </div>
+    <div class="col-md-3 col-6">
+      <div class="bg-secondary rounded p-3 stat-card text-center">
+        <div class="fs-2 fw-bold text-info">{{ pending_requests }}</div>
+        <div class="text-muted small">Pending Resource Requests</div>
+        <a href="{% url 'disaster_management:resource_requests' %}" class="text-muted small">Review</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <!-- Incidents by Type -->
+    <div class="col-lg-5">
+      <div class="bg-secondary rounded p-3 h-100">
+        <h6 class="text-white mb-3"><i class="fa fa-chart-bar me-1 text-info"></i>Active Incidents by Type</h6>
+        {% if type_breakdown %}
+        {% for item in type_breakdown %}
+        <div class="mb-2">
+          <div class="d-flex justify-content-between text-muted small mb-1">
+            <span class="text-white">{{ item.incident_type|title|cut:"_" }}</span>
+            <span>{{ item.count }}</span>
+          </div>
+          <div class="progress" style="height:6px;">
+            <div class="progress-bar bg-primary" style="width:{{ item.count }}00%; max-width:100%;"></div>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="text-muted small">No active incidents.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- State-wise -->
+    <div class="col-lg-4">
+      <div class="bg-secondary rounded p-3 h-100">
+        <h6 class="text-white mb-3"><i class="fa fa-map-marker me-1 text-warning"></i>Top States by Incidents</h6>
+        {% for item in state_incidents %}
+        <div class="d-flex justify-content-between align-items-center mb-2 bg-dark rounded p-2">
+          <div class="text-white small">{{ item.state__name|default:"Unknown" }}</div>
+          <span class="badge bg-primary">{{ item.count }}</span>
+        </div>
+        {% empty %}
+        <p class="text-muted small">No data yet. Incidents with linked states will show here.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Shelter Overview -->
+    <div class="col-lg-3">
+      <div class="bg-secondary rounded p-3 h-100">
+        <h6 class="text-white mb-3"><i class="fa fa-home me-1 text-success"></i>Shelter Capacity</h6>
+        <div class="text-center mb-3">
+          <div class="fs-3 fw-bold text-white">{{ total_capacity }}</div>
+          <div class="text-muted small">Total Capacity</div>
+        </div>
+        <div class="mb-2">
+          <div class="d-flex justify-content-between text-muted small mb-1">
+            <span>Occupied</span>
+            <span>{{ total_occupancy }} / {{ total_capacity }}</span>
+          </div>
+          {% if total_capacity > 0 %}
+          <div class="progress" style="height:8px;">
+            <div class="progress-bar {% if total_occupancy > total_capacity|default:1 %}bg-danger{% elif total_occupancy > total_capacity|floatformat:0|add:"-1"|add:"-1" %}bg-warning{% else %}bg-success{% endif %}"
+              style="width:{% widthratio total_occupancy total_capacity|default:1 100 %}%"></div>
+          </div>
+          {% endif %}
+        </div>
+        <a href="{% url 'disaster_management:shelter_list' %}" class="btn btn-sm btn-outline-success w-100 mt-2">Manage Shelters</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- Active Warnings -->
+    <div class="col-lg-6">
+      <div class="bg-secondary rounded p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="text-white mb-0"><i class="fa fa-bell me-1 text-warning"></i>Active Warnings</h6>
+          <a href="{% url 'disaster_management:warning_create' %}" class="btn btn-sm btn-outline-warning">Issue New</a>
+        </div>
+        {% for w in active_warnings %}
+        <div class="bg-dark rounded p-2 mb-2 warning-bar warning-{{ w.severity }}">
+          <div class="d-flex justify-content-between">
+            <div class="text-white small fw-bold">{{ w.title|truncatechars:50 }}</div>
+            <span class="badge {% if w.severity == 'extreme' %}bg-danger{% elif w.severity == 'warning' %}bg-warning text-dark{% else %}bg-info{% endif %}">{{ w.get_severity_display }}</span>
+          </div>
+          <div class="text-muted small">{{ w.get_disaster_type_display }} · {{ w.issued_at|date:"d M H:i" }}</div>
+        </div>
+        {% empty %}
+        <p class="text-muted small">No active warnings right now.</p>
+        {% endfor %}
+        <a href="{% url 'disaster_management:warning_list' %}" class="btn btn-sm btn-outline-secondary w-100 mt-2">All Warnings</a>
+      </div>
+    </div>
+
+    <!-- Low Stock Resources -->
+    <div class="col-lg-6">
+      <div class="bg-secondary rounded p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="text-white mb-0"><i class="fa fa-exclamation-triangle me-1 text-danger"></i>Low Stock Alerts</h6>
+          <a href="{% url 'disaster_management:resource_list' %}?low_stock=1" class="btn btn-sm btn-outline-danger">View All</a>
+        </div>
+        {% for r in low_stock_resources %}
+        <div class="d-flex justify-content-between align-items-center bg-dark rounded p-2 mb-2">
+          <div>
+            <div class="text-white small fw-bold">{{ r.name }}</div>
+            <div class="text-muted small">{{ r.category.name|default:"" }} · {{ r.quantity_available }} {{ r.unit }} remaining</div>
+          </div>
+          <span class="badge bg-danger"><i class="fa fa-exclamation me-1"></i>Low</span>
+        </div>
+        {% empty %}
+        <p class="text-muted small">All resources are adequately stocked.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="row g-3 mt-2">
+    <div class="col-12">
+      <div class="bg-secondary rounded p-3">
+        <h6 class="text-white mb-3">Quick Actions</h6>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{% url 'disaster_management:india_map' %}" class="btn btn-outline-primary btn-sm"><i class="fa fa-map me-1"></i>India Map</a>
+          <a href="{% url 'disaster_management:risk_zone_list' %}" class="btn btn-outline-warning btn-sm"><i class="fa fa-layer-group me-1"></i>Risk Zones</a>
+          <a href="{% url 'disaster_management:risk_zone_create' %}" class="btn btn-outline-warning btn-sm"><i class="fa fa-plus me-1"></i>Add Risk Zone</a>
+          <a href="{% url 'disaster_management:evacuation_list' %}" class="btn btn-outline-info btn-sm"><i class="fa fa-route me-1"></i>Evacuations</a>
+          <a href="{% url 'disaster_management:evacuation_create' %}" class="btn btn-outline-info btn-sm"><i class="fa fa-plus me-1"></i>New Evacuation Plan</a>
+          <a href="{% url 'disaster_management:shelter_create' %}" class="btn btn-outline-success btn-sm"><i class="fa fa-plus me-1"></i>Add Shelter</a>
+          <a href="{% url 'disaster_management:incident_list' %}" class="btn btn-outline-danger btn-sm"><i class="fa fa-list me-1"></i>Incident Queue</a>
+          <a href="{% url 'disaster_management:verification_list' %}" class="btn btn-outline-secondary btn-sm"><i class="fa fa-user-check me-1"></i>Verifications</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

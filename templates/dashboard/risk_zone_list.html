@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – Disaster Risk Zones{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="risk_zones" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand d-flex d-lg-none me-4">
+      <h3 class="text-primary mb-0"><i class="fa fa-shield-alt"></i></h3>
+    </a>
+    <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+  </nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="text-white mb-0"><i class="fa fa-layer-group me-2 text-warning"></i>Disaster Risk Zones</h4>
+      <p class="text-muted small mb-0">Vulnerable regions identified across India by hazard type and risk level.</p>
+    </div>
+    {% if request.user.is_superuser %}
+    <a href="{% url 'disaster_management:risk_zone_create' %}" class="btn btn-warning btn-sm"><i class="fa fa-plus me-1"></i>Add Zone</a>
+    {% endif %}
+  </div>
+
+  <!-- Summary cards -->
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <div class="bg-secondary rounded p-3 text-center">
+        <div class="fs-3 fw-bold text-white">{{ total_zones }}</div>
+        <div class="text-muted small">Total Risk Zones</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="bg-secondary rounded p-3 text-center">
+        <div class="fs-3 fw-bold text-danger">{{ very_high_count }}</div>
+        <div class="text-muted small">Very High Risk</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="bg-secondary rounded p-3 text-center">
+        <div class="fs-3 fw-bold text-warning">{{ high_count }}</div>
+        <div class="text-muted small">High Risk</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <form method="get" class="bg-secondary rounded p-3 mb-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm bg-dark text-white border-0" placeholder="Search zones...">
+      </div>
+      <div class="col-md-2">
+        <select name="hazard" class="form-select form-select-sm bg-dark text-white border-0">
+          <option value="">All Hazards</option>
+          {% for val, label in hazard_choices %}<option value="{{ val }}" {% if selected_hazard == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select name="risk" class="form-select form-select-sm bg-dark text-white border-0">
+          <option value="">All Risk Levels</option>
+          {% for val, label in risk_choices %}<option value="{{ val }}" {% if selected_risk == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select name="state" class="form-select form-select-sm bg-dark text-white border-0">
+          <option value="">All States</option>
+          {% for s in states %}<option value="{{ s.id }}" {% if selected_state == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1">
+        <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fa fa-search"></i></button>
+      </div>
+      <div class="col-md-1">
+        <a href="{% url 'disaster_management:risk_zone_list' %}" class="btn btn-outline-secondary btn-sm w-100">Clear</a>
+      </div>
+    </div>
+  </form>
+
+  <!-- Table -->
+  <div class="bg-secondary rounded">
+    <div class="table-responsive">
+      <table class="table table-dark table-hover mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Zone Name</th>
+            <th>Hazard</th>
+            <th>Risk Level</th>
+            <th>Score</th>
+            <th>State</th>
+            <th>Population at Risk</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for zone in page_obj %}
+          <tr>
+            <td class="text-white fw-semibold">{{ zone.name }}</td>
+            <td><span class="badge bg-info">{{ zone.get_hazard_type_display }}</span></td>
+            <td>
+              {% if zone.risk_level == 'very_high' %}<span class="badge bg-danger">Very High</span>
+              {% elif zone.risk_level == 'high' %}<span class="badge bg-warning text-dark">High</span>
+              {% elif zone.risk_level == 'moderate' %}<span class="badge bg-secondary">Moderate</span>
+              {% else %}<span class="badge bg-success">Low</span>{% endif %}
+            </td>
+            <td>
+              <div class="progress" style="width:80px;height:8px;" title="{{ zone.risk_score }}">
+                <div class="progress-bar {% if zone.risk_score >= 75 %}bg-danger{% elif zone.risk_score >= 55 %}bg-warning{% elif zone.risk_score >= 35 %}bg-info{% else %}bg-success{% endif %}"
+                  style="width:{{ zone.risk_score }}%"></div>
+              </div>
+              <small class="text-muted">{{ zone.risk_score|floatformat:0 }}/100</small>
+            </td>
+            <td class="text-muted small">{{ zone.state.name|default:"–" }}</td>
+            <td class="text-muted small">{{ zone.population_at_risk|default:0|intcomma }}</td>
+            <td><a href="{% url 'disaster_management:risk_zone_detail' zone.id %}" class="btn btn-sm btn-outline-primary">View</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No risk zones found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page_obj.has_other_pages %}
+    <div class="d-flex justify-content-center py-3">
+      <nav>
+        <ul class="pagination pagination-sm mb-0">
+          {% if page_obj.has_previous %}<li class="page-item"><a class="page-link bg-dark text-white border-secondary" href="?page={{ page_obj.previous_page_number }}&hazard={{ selected_hazard }}&risk={{ selected_risk }}&state={{ selected_state }}&q={{ q }}">Prev</a></li>{% endif %}
+          <li class="page-item disabled"><a class="page-link bg-dark text-muted border-secondary">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</a></li>
+          {% if page_obj.has_next %}<li class="page-item"><a class="page-link bg-dark text-white border-secondary" href="?page={{ page_obj.next_page_number }}&hazard={{ selected_hazard }}&risk={{ selected_risk }}&state={{ selected_state }}&q={{ q }}">Next</a></li>{% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+</div>
+{% endblock %}

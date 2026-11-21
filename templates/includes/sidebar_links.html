@@ -11,23 +11,48 @@
 </div>
 <div class="navbar-nav w-100">
     <a href="{% url 'disaster_management:dashboard_home' %}" class="nav-item nav-link {% if active_menu == 'dashboard' %}active{% endif %}"><i class="fa fa-tachometer-alt me-2"></i>Dashboard</a>
-    <a href="{% url 'disaster_management:incident_report_emergency' %}" class="nav-item nav-link {% if active_menu == 'incident_report_emergency' %}active{% endif %} text-danger"><i class="fa fa-bolt me-2"></i>Emergency Report</a>
-    <a href="{% url 'disaster_management:incident_report' %}" class="nav-item nav-link {% if active_menu == 'incident_report' %}active{% endif %}"><i class="fa fa-exclamation-triangle me-2"></i>New Report</a>
-    <a href="{% url 'disaster_management:incident_list' %}" class="nav-item nav-link {% if active_menu == 'incident_list' %}active{% endif %}"><i class="fa fa-list me-2"></i>Reports</a>
-    <a href="{% url 'disaster_management:incident_history' %}" class="nav-item nav-link {% if active_menu == 'incident_history' %}active{% endif %}"><i class="fa fa-history me-2"></i>Past Reports</a>
-    {% if request.user.is_superuser or request.user.profile.role == 'responder' %}
-    <a href="{% url 'disaster_management:incident_map' %}" class="nav-item nav-link {% if active_menu == 'incident_map' %}active{% endif %}"><i class="fa fa-map-marked-alt me-2"></i>Live Map</a>
+
+    {% if request.user.is_superuser %}
+    <a href="{% url 'disaster_management:national_dashboard' %}" class="nav-item nav-link {% if active_menu == 'national_dashboard' %}active{% endif %}"><i class="fa fa-globe me-2"></i>National Overview</a>
     {% endif %}
-    <a href="{% url 'disaster_management:responder_rankings' %}" class="nav-item nav-link {% if active_menu == 'rankings' %}active{% endif %}"><i class="fa fa-award me-2"></i>Team Rankings</a>
+
+    <a href="{% url 'disaster_management:india_map' %}" class="nav-item nav-link {% if active_menu == 'india_map' %}active{% endif %}"><i class="fa fa-map-marked-alt me-2"></i>India Map</a>
+
+    <a href="{% url 'disaster_management:incident_report_emergency' %}" class="nav-item nav-link {% if active_menu == 'incident_report_emergency' %}active{% endif %} text-danger"><i class="fa fa-bolt me-2"></i>Emergency Report</a>
+    <a href="{% url 'disaster_management:incident_report' %}" class="nav-item nav-link {% if active_menu == 'incident_report' %}active{% endif %}"><i class="fa fa-exclamation-triangle me-2"></i>Report Incident</a>
+    <a href="{% url 'disaster_management:incident_list' %}" class="nav-item nav-link {% if active_menu == 'incident_list' %}active{% endif %}"><i class="fa fa-list me-2"></i>Incidents</a>
+    <a href="{% url 'disaster_management:incident_history' %}" class="nav-item nav-link {% if active_menu == 'incident_history' %}active{% endif %}"><i class="fa fa-history me-2"></i>Past Incidents</a>
     {% if request.user.is_superuser or request.user.profile.role == 'responder' %}
+    <a href="{% url 'disaster_management:incident_map' %}" class="nav-item nav-link {% if active_menu == 'incident_map' %}active{% endif %}"><i class="fa fa-map me-2"></i>Incident Map</a>
+    {% endif %}
+
+    <div class="nav-item nav-link text-muted small mt-2 mb-1 ps-2" style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;">Prevention & Warnings</div>
+    <a href="{% url 'disaster_management:risk_zone_list' %}" class="nav-item nav-link {% if active_menu == 'risk_zones' %}active{% endif %}"><i class="fa fa-layer-group me-2"></i>Risk Zones</a>
+    <a href="{% url 'disaster_management:warning_list' %}" class="nav-item nav-link {% if active_menu == 'warnings' %}active{% endif %}">
+        <i class="fa fa-bell me-2"></i>Early Warnings
+        {% if request.user.is_superuser %}<span class="badge bg-warning text-dark ms-1" id="warning-badge" style="display:none;font-size:0.7rem;"></span>{% endif %}
+    </a>
+
+    <div class="nav-item nav-link text-muted small mt-2 mb-1 ps-2" style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;">Response & Relief</div>
+    <a href="{% url 'disaster_management:shelter_list' %}" class="nav-item nav-link {% if active_menu == 'shelters' %}active{% endif %}"><i class="fa fa-home me-2"></i>Shelters</a>
+    <a href="{% url 'disaster_management:evacuation_list' %}" class="nav-item nav-link {% if active_menu == 'evacuation' %}active{% endif %}"><i class="fa fa-route me-2"></i>Evacuations</a>
+    <a href="{% url 'disaster_management:resource_list' %}" class="nav-item nav-link {% if active_menu == 'resources' %}active{% endif %}"><i class="fa fa-boxes me-2"></i>Resources</a>
+    <a href="{% url 'disaster_management:resource_requests' %}" class="nav-item nav-link {% if active_menu == 'resource_requests' %}active{% endif %}"><i class="fa fa-clipboard-list me-2"></i>Resource Requests</a>
+
+    <div class="nav-item nav-link text-muted small mt-2 mb-1 ps-2" style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;">Community</div>
+    <a href="{% url 'disaster_management:responder_rankings' %}" class="nav-item nav-link {% if active_menu == 'rankings' %}active{% endif %}"><i class="fa fa-award me-2"></i>Responder Rankings</a>
     <a href="{% url 'disaster_management:notification_list' %}" class="nav-item nav-link {% if active_menu == 'notifications' %}active{% endif %}">
-        <i class="fa fa-bell me-2"></i>Alerts
+        <i class="fa fa-bell me-2"></i>Notifications
         <span id="live-notification-badge" class="badge bg-danger ms-2 d-none">0</span>
     </a>
-    {% endif %}
+
     {% if request.user.is_superuser %}
+    <div class="nav-item nav-link text-muted small mt-2 mb-1 ps-2" style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;">Administration</div>
     <a href="{% url 'disaster_management:verification_list' %}" class="nav-item nav-link {% if active_menu == 'verifications' %}active{% endif %}"><i class="fa fa-user-check me-2"></i>User Approvals</a>
-    <a href="{% url 'disaster_management:fake_reports_review' %}" class="nav-item nav-link {% if active_menu == 'fake_reports' %}active{% endif %}"><i class="fa fa-user-shield me-2"></i>Fake Report Review</a>
+    <a href="{% url 'disaster_management:fake_reports_review' %}" class="nav-item nav-link {% if active_menu == 'fake_reports' %}active{% endif %}"><i class="fa fa-user-shield me-2"></i>Fake Reports</a>
     <a href="{% url 'disaster_management:fake_reports_history' %}" class="nav-item nav-link {% if active_menu == 'fake_reports_history' %}active{% endif %}"><i class="fa fa-history me-2"></i>Fake Report History</a>
     {% endif %}
+
+    <a href="{% url 'disaster_management:profile_edit' %}" class="nav-item nav-link {% if active_menu == 'profile' %}active{% endif %} mt-2"><i class="fa fa-user me-2"></i>My Profile</a>
+    <a href="{% url 'disaster_management:logout' %}" class="nav-item nav-link text-danger"><i class="fa fa-sign-out-alt me-2"></i>Logout</a>
 </div>
