@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – My Alert Subscriptions{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3">
+  <nav class="navbar bg-secondary navbar-dark">
+    <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
+      <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
+    </a>
+    {% include "includes/sidebar_links.html" with active_menu="warnings" %}
+  </nav>
+</div>
+<div class="content">
+  <nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+    <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+  </nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <h4 class="text-white mb-4"><i class="fa fa-bell me-2 text-warning"></i>My Alert Subscriptions</h4>
+
+      <!-- Add subscription form -->
+      <div class="bg-secondary rounded p-4 mb-4">
+        <h6 class="text-white mb-3">Subscribe to a Location</h6>
+        <form method="post" action="{% url 'disaster_management:subscribe_location' %}">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label text-white">State</label>
+              <select name="state_id" id="sub-state" class="form-select bg-dark text-white border-secondary">
+                <option value="">Select State</option>
+                {% for s in states %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-white">Notification</label>
+              <div class="d-flex gap-3 mt-1">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="notify_in_app" id="notify_app" checked>
+                  <label class="form-check-label text-white small" for="notify_app">In-App</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="notify_email" id="notify_email">
+                  <label class="form-check-label text-white small" for="notify_email">Email</label>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <button type="submit" class="btn btn-warning w-100">Subscribe</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- Current subscriptions -->
+      <div class="bg-secondary rounded p-3">
+        <h6 class="text-white mb-3">Your Current Subscriptions</h6>
+        {% for sub in subscriptions %}
+        <div class="d-flex justify-content-between align-items-center bg-dark rounded p-2 mb-2">
+          <div>
+            <div class="text-white small fw-bold">
+              {% if sub.district %}{{ sub.district.name }}, {% endif %}
+              {{ sub.state.name|default:"All India" }}
+            </div>
+            <div class="text-muted small">
+              {% if sub.notify_in_app %}In-App{% endif %}
+              {% if sub.notify_email %}{% if sub.notify_in_app %} + {% endif %}Email{% endif %}
+            </div>
+          </div>
+          <form method="post" action="{% url 'disaster_management:unsubscribe_location' sub.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">Unsubscribe</button>
+          </form>
+        </div>
+        {% empty %}
+        <p class="text-muted small">No subscriptions yet. Subscribe above to receive location-specific alerts.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

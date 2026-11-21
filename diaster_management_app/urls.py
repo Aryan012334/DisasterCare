@@ -114,8 +114,24 @@ urlpatterns = [
     path("dashboard/resources/requests/", dv.resource_request_list_view, name="resource_requests"),
     path("dashboard/resources/requests/<int:req_id>/action/", dv.resource_request_action_view, name="resource_request_action"),
 
+    # Damage Assessments
+    path("dashboard/damage-assessments/", dv.damage_assessment_list_view, name="damage_assessment_list"),
+    path("dashboard/incidents/<int:incident_id>/damage-assessment/", dv.damage_assessment_create_view, name="damage_assessment_create"),
+    path("dashboard/damage-assessments/<int:assessment_id>/", dv.damage_assessment_detail_view, name="damage_assessment_detail"),
+    path("dashboard/damage-assessments/<int:assessment_id>/verify/", dv.damage_assessment_verify_view, name="damage_assessment_verify"),
+
+    # Infrastructure
+    path("dashboard/infrastructure/", dv.infrastructure_list_view, name="infrastructure_list"),
+    path("dashboard/infrastructure/create/", dv.infrastructure_create_view, name="infrastructure_create"),
+    path("dashboard/infrastructure/map-data/", dv.infrastructure_map_data_view, name="infrastructure_map_data"),
+
     # AJAX
     path("api/districts/", dv.districts_by_state_view, name="districts_by_state"),
+
+    # Subscriptions
+    path("dashboard/subscriptions/", dv.my_subscriptions_view, name="my_subscriptions"),
+    path("dashboard/subscriptions/subscribe/", dv.subscribe_location_view, name="subscribe_location"),
+    path("dashboard/subscriptions/<int:sub_id>/unsubscribe/", dv.unsubscribe_location_view, name="unsubscribe_location"),
 
     path("api/", include("diaster_management_app.api_urls")),
 ]

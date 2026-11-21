@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}DisasterCare – Add Infrastructure Asset{% endblock %}
+{% block header %}
+<div class="sidebar pe-4 pb-3"><nav class="navbar bg-secondary navbar-dark">
+  <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3"><h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3></a>
+  {% include "includes/sidebar_links.html" with active_menu="infrastructure" %}
+</nav></div>
+<div class="content">
+<nav class="navbar navbar-expand bg-secondary navbar-dark sticky-top px-4 py-0">
+  <div class="navbar-nav align-items-center ms-auto">{% include "includes/topbar_notifications.html" %}</div>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="container-fluid pt-4 px-4">
+  <div class="row justify-content-center"><div class="col-lg-8">
+    <div class="bg-secondary rounded p-4">
+      <h4 class="text-white mb-4"><i class="fa fa-hospital me-2 text-info"></i>{{ form_title }}</h4>
+      <form method="post">{% csrf_token %}
+        <div class="row g-3">
+          <div class="col-12"><label class="form-label text-white">Name <span class="text-danger">*</span></label><input type="text" name="name" required class="form-control bg-dark text-white border-secondary" placeholder="e.g. AIIMS Delhi"></div>
+          <div class="col-md-4">
+            <label class="form-label text-white">Category</label>
+            <select name="category" class="form-select bg-dark text-white border-secondary">
+              {% for val,label in category_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4"><label class="form-label text-white">State</label>
+            <select name="state_id" id="inf-state" class="form-select bg-dark text-white border-secondary">
+              <option value="">Select State</option>{% for s in states %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4"><label class="form-label text-white">District</label>
+            <select name="district_id" id="inf-district" class="form-select bg-dark text-white border-secondary">
+              <option value="">Select District</option>
+            </select>
+          </div>
+          <div class="col-12"><label class="form-label text-white">Address</label><textarea name="address" rows="2" class="form-control bg-dark text-white border-secondary" placeholder="Full address"></textarea></div>
+          <div class="col-md-6"><label class="form-label text-white">Latitude <span class="text-danger">*</span></label><input type="number" name="latitude" required step="0.000001" class="form-control bg-dark text-white border-secondary"></div>
+          <div class="col-md-6"><label class="form-label text-white">Longitude <span class="text-danger">*</span></label><input type="number" name="longitude" required step="0.000001" class="form-control bg-dark text-white border-secondary"></div>
+          <div class="col-md-6"><label class="form-label text-white">Capacity</label><input type="number" name="capacity" value="0" min="0" class="form-control bg-dark text-white border-secondary" placeholder="Beds/seats/etc."></div>
+          <div class="col-md-6"><label class="form-label text-white">Contact Phone</label><input type="text" name="contact_phone" class="form-control bg-dark text-white border-secondary"></div>
+          <div class="col-12"><label class="form-label text-white">Notes</label><textarea name="notes" rows="2" class="form-control bg-dark text-white border-secondary"></textarea></div>
+          <div class="col-12">
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="is_sensitive" id="is_sens"><label class="form-check-label text-white" for="is_sens">Sensitive – restrict to admins only</label></div>
+          </div>
+          <div class="col-12 d-flex gap-2">
+            <button type="submit" class="btn btn-info"><i class="fa fa-plus me-1"></i>Add Asset</button>
+            <a href="{% url 'disaster_management:infrastructure_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div></div>
+</div></div>
+{% endblock %}
+{% block footer %}
+<script>
+document.getElementById('inf-state').addEventListener('change', function() {
+  const sel = document.getElementById('inf-district');
+  if (!this.value) { sel.innerHTML = '<option value="">Select District</option>'; return; }
+  fetch(`{% url 'disaster_management:districts_by_state' %}?state_id=${this.value}`)
+    .then(r=>r.json()).then(d=>{ sel.innerHTML='<option value="">Select District</option>'; d.districts.forEach(x=>sel.innerHTML+=`<option value="${x.id}">${x.name}</option>`); });
+});
+</script>
+{% endblock %}

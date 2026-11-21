@@ -53,17 +53,41 @@ def india_map_view(request):
     })
 
 
+@login_required
 @require_GET
 def india_map_data_view(request):
-    """JSON endpoint for the India map layer data."""
-    # Incidents
-    incidents_qs = Incident.objects.filter(
-        status__in=[
-            Incident.Status.PENDING, Incident.Status.VERIFIED,
-            Incident.Status.DISPATCHED, Incident.Status.ON_SCENE,
-            Incident.Status.STABILIZED, Incident.Status.ESCALATED,
-        ]
-    ).values("id", "title", "incident_type", "severity", "latitude", "longitude", "status", "address")
+    """JSON endpoint for the India map layer data.
+
+    Admins and responders receive full incident coordinates and addresses.
+    Regular reporters and other authenticated users receive only non-sensitive
+    incident fields (incident_type, severity, status) — no lat/lon or address.
+    Shelters, risk zones, and warnings are always returned in full as they are
+    public-safety information.
+    """
+    is_privileged = (
+        request.user.is_superuser
+        or (
+            hasattr(request.user, "profile")
+            and request.user.profile.role == UserProfile.Role.RESPONDER
+        )
+    )
+
+    active_statuses = [
+        Incident.Status.PENDING, Incident.Status.VERIFIED,
+        Incident.Status.DISPATCHED, Incident.Status.ON_SCENE,
+        Incident.Status.STABILIZED, Incident.Status.ESCALATED,
+    ]
+
+    if is_privileged:
+        incidents_qs = Incident.objects.filter(
+            status__in=active_statuses
+        ).values("id", "title", "incident_type", "severity", "latitude", "longitude", "status", "address")
+        incidents_data = list(incidents_qs)
+    else:
+        incidents_qs = Incident.objects.filter(
+            status__in=active_statuses
+        ).values("id", "incident_type", "severity", "status")
+        incidents_data = list(incidents_qs)
 
     # Risk zones
     risk_qs = DisasterRiskZone.objects.filter(is_active=True).values(
@@ -71,18 +95,18 @@ def india_map_data_view(request):
         "latitude", "longitude", "radius_km", "population_at_risk",
     )
 
-    # Shelters
+    # Shelters — always public (they are public facilities)
     shelter_qs = Shelter.objects.filter(
         status__in=[Shelter.Status.ACTIVE, Shelter.Status.STANDBY, Shelter.Status.FULL]
     ).values("id", "name", "status", "latitude", "longitude", "capacity", "current_occupancy")
 
-    # Warnings
+    # Warnings — always public
     warning_qs = EarlyWarning.objects.filter(is_active=True).values(
         "id", "title", "disaster_type", "severity", "issued_at"
     )
 
     return JsonResponse({
-        "incidents": list(incidents_qs),
+        "incidents": incidents_data,
         "risk_zones": [
             {**r, "latitude": float(r["latitude"]), "longitude": float(r["longitude"])}
             for r in risk_qs
@@ -871,3 +895,273 @@ def districts_by_state_view(request):
         IndianDistrict.objects.filter(state_id=state_id).values("id", "name").order_by("name")
     )
     return JsonResponse({"districts": districts})
+
+
+# ---------------------------------------------------------------------------
+# Location Subscriptions
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def subscribe_location_view(request):
+    """Subscribe to location-based warning notifications."""
+    state_id = request.POST.get('state_id') or None
+    district_id = request.POST.get('district_id') or None
+    notify_in_app = request.POST.get('notify_in_app') == 'on'
+    notify_email = request.POST.get('notify_email') == 'on'
+
+    if not state_id and not district_id:
+        messages.error(request, 'Please select a state or district to subscribe.')
+        return redirect('disaster_management:warning_list')
+
+    from .models import LocationSubscription
+    try:
+        sub, created = LocationSubscription.objects.get_or_create(
+            user=request.user,
+            state_id=state_id,
+            district_id=district_id,
+            defaults={'notify_in_app': notify_in_app, 'notify_email': notify_email},
+        )
+        if created:
+            messages.success(request, 'You are now subscribed to alerts for this location.')
+        else:
+            sub.notify_in_app = notify_in_app
+            sub.notify_email = notify_email
+            sub.save(update_fields=['notify_in_app', 'notify_email'])
+            messages.info(request, 'Subscription preferences updated.')
+    except Exception as e:
+        messages.error(request, f'Could not save subscription: {e}')
+
+    return redirect('disaster_management:warning_list')
+
+
+@login_required
+@require_POST
+def unsubscribe_location_view(request, sub_id):
+    from .models import LocationSubscription
+    sub = get_object_or_404(LocationSubscription, pk=sub_id, user=request.user)
+    sub.delete()
+    messages.success(request, 'Unsubscribed from location alerts.')
+    return redirect('disaster_management:my_subscriptions')
+
+
+@login_required
+def my_subscriptions_view(request):
+    from .models import LocationSubscription
+    subs = LocationSubscription.objects.filter(user=request.user).select_related('state', 'district')
+    states = IndianState.objects.all()
+    return render(request, 'dashboard/my_subscriptions.html', {
+        'subscriptions': subs,
+        'states': states,
+        'active_menu': 'warnings',
+    })
+
+
+# ---------------------------------------------------------------------------
+# Damage Assessments
+# ---------------------------------------------------------------------------
+
+@login_required
+def damage_assessment_list_view(request):
+    from .models import DamageAssessment
+    if request.user.is_superuser:
+        qs = DamageAssessment.objects.select_related('incident', 'assessed_by', 'state', 'district').all()
+    else:
+        qs = DamageAssessment.objects.select_related('incident', 'state', 'district').filter(assessed_by=request.user)
+    
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+    
+    paginator = Paginator(qs.order_by('-created_at'), 20)
+    page = paginator.get_page(request.GET.get('page'))
+    
+    return render(request, 'dashboard/damage_assessment_list.html', {
+        'page_obj': page,
+        'status_choices': DamageAssessment.Status.choices,
+        'selected_status': status_filter,
+        'active_menu': 'damage_assessments',
+    })
+
+
+@login_required
+def damage_assessment_create_view(request, incident_id):
+    from .models import DamageAssessment
+    incident = get_object_or_404(Incident, pk=incident_id)
+    # Only responders assigned to incident or admins can submit
+    if not request.user.is_superuser:
+        from .models import IncidentAssignment
+        has_assignment = IncidentAssignment.objects.filter(
+            incident=incident, responder=request.user,
+            status__in=['accepted', 'notified']
+        ).exists()
+        if not has_assignment:
+            messages.error(request, 'Only assigned responders or admins can submit damage assessments.')
+            return redirect('disaster_management:incident_detail', incident_id=incident.id)
+    
+    if request.method == 'POST':
+        severity = request.POST.get('severity', 'moderate')
+        homes_damaged = int(request.POST.get('homes_damaged', 0) or 0)
+        homes_destroyed = int(request.POST.get('homes_destroyed', 0) or 0)
+        roads_damaged_km = float(request.POST.get('roads_damaged_km', 0) or 0)
+        crops_damaged_hectares = float(request.POST.get('crops_damaged_hectares', 0) or 0)
+        public_infra_damaged = request.POST.get('public_infra_damaged', '')
+        estimated_loss_lakhs = float(request.POST.get('estimated_loss_lakhs', 0) or 0)
+        description = request.POST.get('description', '')
+        state_id = request.POST.get('state_id') or None
+        district_id = request.POST.get('district_id') or None
+        
+        assessment = DamageAssessment.objects.create(
+            incident=incident,
+            assessed_by=request.user,
+            severity=severity,
+            status=DamageAssessment.Status.SUBMITTED,
+            homes_damaged=homes_damaged,
+            homes_destroyed=homes_destroyed,
+            roads_damaged_km=roads_damaged_km,
+            crops_damaged_hectares=crops_damaged_hectares,
+            public_infra_damaged=public_infra_damaged,
+            estimated_loss_lakhs=estimated_loss_lakhs,
+            description=description,
+            state_id=state_id,
+            district_id=district_id,
+        )
+        messages.success(request, f'Damage assessment #{assessment.id} submitted.')
+        return redirect('disaster_management:incident_detail', incident_id=incident.id)
+    
+    return render(request, 'dashboard/damage_assessment_form.html', {
+        'incident': incident,
+        'states': IndianState.objects.all(),
+        'severity_choices': DamageAssessment.Severity.choices,
+        'active_menu': 'damage_assessments',
+    })
+
+
+@login_required
+def damage_assessment_detail_view(request, assessment_id):
+    from .models import DamageAssessment
+    assessment = get_object_or_404(DamageAssessment, pk=assessment_id)
+    return render(request, 'dashboard/damage_assessment_detail.html', {
+        'assessment': assessment,
+        'active_menu': 'damage_assessments',
+    })
+
+
+@login_required
+@require_POST
+def damage_assessment_verify_view(request, assessment_id):
+    from .models import DamageAssessment
+    if not request.user.is_superuser:
+        messages.error(request, 'Only admins can verify damage assessments.')
+        return redirect('disaster_management:damage_assessment_list')
+    assessment = get_object_or_404(DamageAssessment, pk=assessment_id)
+    action = request.POST.get('action')
+    if action == 'verify':
+        assessment.status = DamageAssessment.Status.VERIFIED
+        assessment.verified_by = request.user
+        assessment.verified_at = timezone.now()
+        assessment.save()
+        messages.success(request, 'Assessment verified.')
+    elif action == 'reject':
+        assessment.status = DamageAssessment.Status.REJECTED
+        assessment.save()
+        messages.success(request, 'Assessment rejected.')
+    return redirect('disaster_management:damage_assessment_detail', assessment_id=assessment_id)
+
+
+# ---------------------------------------------------------------------------
+# Infrastructure Registry
+# ---------------------------------------------------------------------------
+
+@login_required
+def infrastructure_list_view(request):
+    from .models import InfrastructureAsset
+    qs = InfrastructureAsset.objects.select_related('state', 'district').all()
+    
+    # Hide sensitive assets from non-admins
+    if not request.user.is_superuser:
+        qs = qs.filter(is_sensitive=False)
+    
+    category = request.GET.get('category', '')
+    state_id = request.GET.get('state', '')
+    q = request.GET.get('q', '')
+    
+    if category:
+        qs = qs.filter(category=category)
+    if state_id:
+        qs = qs.filter(state_id=state_id)
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(address__icontains=q))
+    
+    paginator = Paginator(qs.order_by('name'), 25)
+    page = paginator.get_page(request.GET.get('page'))
+    
+    return render(request, 'dashboard/infrastructure_list.html', {
+        'page_obj': page,
+        'category_choices': InfrastructureAsset.Category.choices,
+        'states': IndianState.objects.all(),
+        'selected_category': category,
+        'selected_state': state_id,
+        'q': q,
+        'total': qs.count(),
+        'active_menu': 'infrastructure',
+    })
+
+
+@login_required
+def infrastructure_create_view(request):
+    from .models import InfrastructureAsset
+    if not request.user.is_superuser:
+        messages.error(request, 'Only admins can add infrastructure assets.')
+        return redirect('disaster_management:infrastructure_list')
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        category = request.POST.get('category', 'other')
+        lat = request.POST.get('latitude', '')
+        lon = request.POST.get('longitude', '')
+        state_id = request.POST.get('state_id') or None
+        district_id = request.POST.get('district_id') or None
+        address = request.POST.get('address', '')
+        capacity = int(request.POST.get('capacity', 0) or 0)
+        contact_phone = request.POST.get('contact_phone', '')
+        notes = request.POST.get('notes', '')
+        is_sensitive = request.POST.get('is_sensitive') == 'on'
+        
+        if not name or not lat or not lon:
+            messages.error(request, 'Name, latitude and longitude are required.')
+        else:
+            try:
+                InfrastructureAsset.objects.create(
+                    name=name, category=category,
+                    latitude=float(lat), longitude=float(lon),
+                    state_id=state_id, district_id=district_id,
+                    address=address, capacity=capacity,
+                    contact_phone=contact_phone, notes=notes,
+                    is_sensitive=is_sensitive,
+                )
+                messages.success(request, f"Asset '{name}' added.")
+                return redirect('disaster_management:infrastructure_list')
+            except (ValueError, TypeError) as e:
+                messages.error(request, f'Invalid data: {e}')
+    
+    return render(request, 'dashboard/infrastructure_form.html', {
+        'states': IndianState.objects.all(),
+        'category_choices': InfrastructureAsset.Category.choices,
+        'active_menu': 'infrastructure',
+        'form_title': 'Add Infrastructure Asset',
+    })
+
+
+@login_required
+def infrastructure_map_data_view(request):
+    """JSON for infrastructure layer on the India map."""
+    from .models import InfrastructureAsset
+    qs = InfrastructureAsset.objects.filter(is_operational=True)
+    if not request.user.is_superuser:
+        qs = qs.filter(is_sensitive=False)
+    assets = list(qs.values('id', 'name', 'category', 'latitude', 'longitude', 'capacity'))
+    return JsonResponse({'assets': [
+        {**a, 'latitude': float(a['latitude']), 'longitude': float(a['longitude'])}
+        for a in assets
+    ]})

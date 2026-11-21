@@ -38,6 +38,9 @@
     <a href="{% url 'disaster_management:evacuation_list' %}" class="nav-item nav-link {% if active_menu == 'evacuation' %}active{% endif %}"><i class="fa fa-route me-2"></i>Evacuations</a>
     <a href="{% url 'disaster_management:resource_list' %}" class="nav-item nav-link {% if active_menu == 'resources' %}active{% endif %}"><i class="fa fa-boxes me-2"></i>Resources</a>
     <a href="{% url 'disaster_management:resource_requests' %}" class="nav-item nav-link {% if active_menu == 'resource_requests' %}active{% endif %}"><i class="fa fa-clipboard-list me-2"></i>Resource Requests</a>
+    <a href="{% url 'disaster_management:damage_assessment_list' %}" class="nav-item nav-link {% if active_menu == 'damage_assessments' %}active{% endif %}"><i class="fa fa-clipboard-check me-2"></i>Damage Assessments</a>
+    <a href="{% url 'disaster_management:infrastructure_list' %}" class="nav-item nav-link {% if active_menu == 'infrastructure' %}active{% endif %}"><i class="fa fa-hospital me-2"></i>Infrastructure</a>
+    <a href="{% url 'disaster_management:my_subscriptions' %}" class="nav-item nav-link {% if active_menu == 'subscriptions' %}active{% endif %}"><i class="fa fa-bell me-2"></i>Alert Subscriptions</a>
 
     <div class="nav-item nav-link text-muted small mt-2 mb-1 ps-2" style="font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;">Community</div>
     <a href="{% url 'disaster_management:responder_rankings' %}" class="nav-item nav-link {% if active_menu == 'rankings' %}active{% endif %}"><i class="fa fa-award me-2"></i>Responder Rankings</a>

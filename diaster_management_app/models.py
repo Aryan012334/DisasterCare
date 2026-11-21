@@ -28,6 +28,7 @@ class IndianDistrict(models.Model):
     name = models.CharField(max_length=100)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    lgd_code = models.CharField(max_length=20, blank=True, default='', help_text='LGD district code')
 
     class Meta:
         ordering = ("name",)
@@ -811,3 +812,107 @@ class IncidentFakeReportMedia(TimeStampedModel):
 
     def __str__(self):
         return f"FakeReportMedia {self.id} for Incident {self.fake_report.incident_id}"
+
+
+# ---------------------------------------------------------------------------
+# Infrastructure Registry
+# ---------------------------------------------------------------------------
+
+class InfrastructureAsset(models.Model):
+    class Category(models.TextChoices):
+        HOSPITAL = 'hospital', 'Hospital'
+        SCHOOL = 'school', 'School'
+        BRIDGE = 'bridge', 'Bridge'
+        DAM = 'dam', 'Dam'
+        ROAD = 'road', 'Major Road'
+        WATER_FACILITY = 'water', 'Water Facility'
+        FIRE_STATION = 'fire_station', 'Fire Station'
+        POLICE_STATION = 'police_station', 'Police Station'
+        EMERGENCY_CENTER = 'emergency', 'Emergency Center'
+        POWER_PLANT = 'power', 'Power Plant'
+        OTHER = 'other', 'Other'
+
+    name = models.CharField(max_length=255)
+    category = models.CharField(max_length=30, choices=Category.choices, default=Category.OTHER)
+    state = models.ForeignKey('IndianState', on_delete=models.SET_NULL, null=True, blank=True, related_name='infrastructure')
+    district = models.ForeignKey('IndianDistrict', on_delete=models.SET_NULL, null=True, blank=True, related_name='infrastructure')
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    address = models.TextField(blank=True)
+    capacity = models.PositiveIntegerField(default=0, help_text='Beds/seats/MW/etc.')
+    is_operational = models.BooleanField(default=True)
+    contact_phone = models.CharField(max_length=20, blank=True)
+    notes = models.TextField(blank=True)
+    is_sensitive = models.BooleanField(default=False, help_text='Restrict to admin-only if True')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('name',)
+
+    def __str__(self):
+        return f'{self.name} ({self.get_category_display()})'
+
+
+# ---------------------------------------------------------------------------
+# Damage Assessment
+# ---------------------------------------------------------------------------
+
+class DamageAssessment(models.Model):
+    class Severity(models.TextChoices):
+        MINOR = 'minor', 'Minor'
+        MODERATE = 'moderate', 'Moderate'
+        SEVERE = 'severe', 'Severe'
+        CATASTROPHIC = 'catastrophic', 'Catastrophic'
+
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'Draft'
+        SUBMITTED = 'submitted', 'Submitted'
+        VERIFIED = 'verified', 'Verified'
+        REJECTED = 'rejected', 'Rejected'
+
+    incident = models.ForeignKey('Incident', on_delete=models.CASCADE, related_name='damage_assessments')
+    assessed_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True, related_name='damage_assessments')
+    state = models.ForeignKey('IndianState', on_delete=models.SET_NULL, null=True, blank=True)
+    district = models.ForeignKey('IndianDistrict', on_delete=models.SET_NULL, null=True, blank=True)
+    severity = models.CharField(max_length=20, choices=Severity.choices, default=Severity.MODERATE)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    homes_damaged = models.PositiveIntegerField(default=0)
+    homes_destroyed = models.PositiveIntegerField(default=0)
+    roads_damaged_km = models.FloatField(default=0.0)
+    crops_damaged_hectares = models.FloatField(default=0.0)
+    public_infra_damaged = models.TextField(blank=True)
+    estimated_loss_lakhs = models.FloatField(default=0.0, help_text='Estimated loss in Indian Rupees (Lakhs)')
+    description = models.TextField(blank=True)
+    verified_by = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_damage_assessments')
+    verified_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        return f'Damage Assessment #{self.id} for Incident {self.incident_id}'
+
+
+# ---------------------------------------------------------------------------
+# Location Subscription
+# ---------------------------------------------------------------------------
+
+class LocationSubscription(models.Model):
+    """User subscription for location-based warning notifications."""
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='location_subscriptions')
+    state = models.ForeignKey('IndianState', on_delete=models.CASCADE, null=True, blank=True, related_name='subscribers')
+    district = models.ForeignKey('IndianDistrict', on_delete=models.CASCADE, null=True, blank=True, related_name='subscribers')
+    notify_in_app = models.BooleanField(default=True)
+    notify_email = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'state', 'district')
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        loc = self.district.name if self.district else (self.state.name if self.state else 'All India')
+        return f'{self.user.username} subscribed to {loc}'
