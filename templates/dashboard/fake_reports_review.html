@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% load static %}
 
 {% block title %}Fake Report Verification Queue{% endblock %}
@@ -7,7 +7,7 @@
 <div class="sidebar pe-4 pb-3">
     <nav class="navbar bg-secondary navbar-dark">
         <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3">
-            <h3 class="text-primary"><i class="fa fa-user-edit me-2"></i>CRDR</h3>
+            <h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3>
         </a>
         {% include "includes/sidebar_links.html" with active_menu="fake_reports" %}
     </nav>
@@ -175,7 +175,7 @@
 
 {% block footer %}
 <div class="container-fluid pt-4 px-4">
-    <div class="bg-secondary rounded-top p-4"><div class="row"><div class="col-12 text-center">&copy; CRDR</div></div></div>
+    <div class="bg-secondary rounded-top p-4"><div class="row"><div class="col-12 text-center">&copy; DisasterCare</div></div></div>
 </div>
 </div>
 {% endblock %}

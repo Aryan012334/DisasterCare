@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static humanize %}
 {% block title %}DisasterCare – National Dashboard{% endblock %}
 {% block extra_head %}
 <style>
@@ -125,7 +125,7 @@
           {% if total_capacity > 0 %}
           <div class="progress" style="height:8px;">
             <div class="progress-bar {% if total_occupancy > total_capacity|default:1 %}bg-danger{% elif total_occupancy > total_capacity|floatformat:0|add:"-1"|add:"-1" %}bg-warning{% else %}bg-success{% endif %}"
-              style="width:{% widthratio total_occupancy total_capacity|default:1 100 %}%"></div>
+              style="width:{% if total_capacity %}{% widthratio total_occupancy total_capacity 100 %}{% else %}0{% endif %}%"></div>
           </div>
           {% endif %}
         </div>
