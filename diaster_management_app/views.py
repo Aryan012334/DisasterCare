@@ -3968,7 +3968,75 @@ def logout_view(request):
 
 @require_POST
 def report_incident(request):
-    return JsonResponse({"message": "Use dashboard incident reporting page or API v2 endpoint."}, status=200)
+    import json
+    if not request.user.is_authenticated:
+        return JsonResponse({"message": "Authentication required to report an incident."}, status=401)
+
+    try:
+        if request.content_type == "application/json":
+            data = json.loads(request.body.decode("utf-8"))
+        else:
+            data = request.POST.dict()
+    except Exception:
+        return JsonResponse({"message": "Invalid request payload format."}, status=400)
+
+    title = (data.get("title") or "").strip()
+    description = (data.get("description") or "").strip()
+    incident_type = (data.get("incident_type") or "other").strip()
+    lat_raw = data.get("latitude")
+    lon_raw = data.get("longitude")
+    report_mode = data.get("report_mode", "normal")
+    people_affected = int(data.get("people_affected") or 0)
+
+    if not title or not description or lat_raw is None or lon_raw is None:
+        return JsonResponse({"message": "Title, description, latitude, and longitude are required."}, status=400)
+
+    try:
+        latitude = float(lat_raw)
+        longitude = float(lon_raw)
+    except (ValueError, TypeError):
+        return JsonResponse({"message": "Invalid latitude or longitude coordinates."}, status=400)
+
+    valid_types = dict(Incident.IncidentType.choices)
+    if incident_type not in valid_types:
+        incident_type = Incident.IncidentType.OTHER
+
+    mode = Incident.ReportMode.EMERGENCY if str(report_mode).lower() == "emergency" else Incident.ReportMode.NORMAL
+
+    incident = Incident(
+        title=title,
+        description=description,
+        incident_type=incident_type,
+        latitude=latitude,
+        longitude=longitude,
+        reporter=request.user,
+        report_mode=mode,
+        people_affected=max(0, people_affected),
+        occurred_at=timezone.now(),
+    )
+
+    _apply_triage_to_incident(incident, description, allow_lower_severity=(mode == Incident.ReportMode.NORMAL))
+    duplicate = _find_duplicate_candidate(incident)
+    if duplicate:
+        incident.is_duplicate_suspected = True
+        incident.duplicate_of = duplicate
+
+    incident.save()
+    _run_consequence_intelligence_and_notify(incident)
+
+    if mode == Incident.ReportMode.EMERGENCY:
+        _dispatch_nearest_responders(incident, limit=5)
+
+    return JsonResponse({
+        "success": True,
+        "message": "Incident reported successfully.",
+        "incident_id": incident.id,
+        "incident_type": incident.incident_type,
+        "severity": incident.severity,
+        "ai_confidence": incident.ai_confidence,
+        "ai_risk_score": incident.ai_risk_score,
+        "is_duplicate_suspected": incident.is_duplicate_suspected,
+    }, status=201)
 
 
 @require_POST

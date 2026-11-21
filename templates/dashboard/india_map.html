@@ -86,6 +86,10 @@
               <input class="form-check-input" type="checkbox" id="layer-shelters" checked>
               <label class="form-check-label text-white small" for="layer-shelters"><span class="legend-dot bg-success"></span>Shelters</label>
             </div>
+            <div class="form-check form-check-inline mb-0">
+              <input class="form-check-input" type="checkbox" id="layer-infra" checked>
+              <label class="form-check-label text-white small" for="layer-infra"><span class="legend-dot bg-info"></span>Infrastructure</label>
+            </div>
           </div>
           <div id="india-map"></div>
         </div>
@@ -132,16 +136,31 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const map = L.map('india-map').setView([20.5937, 78.9629], 5);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap', maxZoom: 18
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, DeLorme, NAVTEQ',
+  maxZoom: 16
 }).addTo(map);
 
 const incidentLayer = L.layerGroup();
 const zoneLayer = L.layerGroup();
 const shelterLayer = L.layerGroup();
+const infraLayer = L.layerGroup();
 
 const severityColor = {critical:'#dc3545',high:'#fd7e14',medium:'#ffc107',low:'#28a745'};
 const riskColor = {very_high:'#dc3545',high:'#fd7e14',moderate:'#ffc107',low:'#28a745'};
+const infraIconMap = {
+  hospital: 'fa-hospital text-danger',
+  emergency_services: 'fa-ambulance text-warning',
+  fire_station: 'fa-fire-extinguisher text-danger',
+  police_station: 'fa-shield-alt text-primary',
+  school: 'fa-school text-info',
+  shelter: 'fa-campground text-success',
+  bridge: 'fa-archway text-light',
+  dam: 'fa-water text-primary',
+  power_station: 'fa-bolt text-warning',
+  water_supply: 'fa-tint text-info',
+  telecom: 'fa-broadcast-tower text-success'
+};
 
 fetch("{% url 'disaster_management:india_map_data' %}")
   .then(r => r.json())
@@ -177,6 +196,25 @@ fetch("{% url 'disaster_management:india_map_data' %}")
     shelterLayer.addTo(map);
   });
 
+fetch("{% url 'disaster_management:infrastructure_map_data' %}")
+  .then(r => r.json())
+  .then(data => {
+    if (data.assets) {
+      data.assets.forEach(asset => {
+        const iconClass = infraIconMap[asset.category] || 'fa-building text-info';
+        const icon = L.divIcon({
+          html: `<div style="background:rgba(20,25,35,0.85);border:1px solid rgba(255,255,255,0.2);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;"><i class="fa ${iconClass}" style="font-size:13px;"></i></div>`,
+          className: ''
+        });
+        L.marker([asset.latitude, asset.longitude], {icon})
+          .bindPopup(`<b>${asset.name}</b><br><span class="badge bg-info text-dark">${asset.category}</span><br>Capacity: ${asset.capacity || 'N/A'}`)
+          .addTo(infraLayer);
+      });
+      infraLayer.addTo(map);
+    }
+  })
+  .catch(() => {});
+
 document.getElementById('layer-incidents').addEventListener('change', e => {
   e.target.checked ? map.addLayer(incidentLayer) : map.removeLayer(incidentLayer);
 });
@@ -185,6 +223,9 @@ document.getElementById('layer-zones').addEventListener('change', e => {
 });
 document.getElementById('layer-shelters').addEventListener('change', e => {
   e.target.checked ? map.addLayer(shelterLayer) : map.removeLayer(shelterLayer);
+});
+document.getElementById('layer-infra').addEventListener('change', e => {
+  e.target.checked ? map.addLayer(infraLayer) : map.removeLayer(infraLayer);
 });
 </script>
 {% endblock %}

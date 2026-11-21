@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}DisasterCare – Infrastructure Registry{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  #infra-map-canvas { height: 420px; border-radius: 0.5rem; display: none; }
+</style>
+{% endblock %}
 {% block header %}
 <div class="sidebar pe-4 pb-3"><nav class="navbar bg-secondary navbar-dark">
   <a href="{% url 'disaster_management:dashboard_home' %}" class="navbar-brand mx-4 mb-3"><h3 class="text-primary"><i class="fa fa-shield-alt me-2"></i>DisasterCare</h3></a>
@@ -18,8 +24,12 @@
       <h4 class="text-white mb-0"><i class="fa fa-hospital me-2 text-info"></i>Critical Infrastructure</h4>
       <p class="text-muted small mb-0">Hospitals, schools, bridges, dams and emergency facilities.</p>
     </div>
-    {% if request.user.is_superuser %}<a href="{% url 'disaster_management:infrastructure_create' %}" class="btn btn-info btn-sm"><i class="fa fa-plus me-1"></i>Add Asset</a>{% endif %}
+    <div>
+      {% if request.user.is_superuser %}<a href="{% url 'disaster_management:infrastructure_create' %}" class="btn btn-info btn-sm me-2"><i class="fa fa-plus me-1"></i>Add Asset</a>{% endif %}
+      <button type="button" id="toggleMapBtn" class="btn btn-outline-info btn-sm"><i class="fa fa-map-marked-alt me-1"></i>View on Map</button>
+    </div>
   </div>
+  <div id="infra-map-canvas" class="bg-secondary mb-3 p-1"></div>
   <form method="get" class="bg-secondary rounded p-3 mb-3">
     <div class="row g-2 align-items-end">
       <div class="col-md-3"><input type="text" name="q" value="{{ q }}" class="form-control form-control-sm bg-dark text-white border-0" placeholder="Search assets..."></div>
@@ -68,4 +78,59 @@
   </ul></nav></div>
   {% endif %}
 </div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let infraMap = null;
+let infraMarkers = null;
+
+const toggleBtn = document.getElementById('toggleMapBtn');
+const mapContainer = document.getElementById('infra-map-canvas');
+
+toggleBtn.addEventListener('click', () => {
+  if (mapContainer.style.display === 'block') {
+    mapContainer.style.display = 'none';
+    toggleBtn.innerHTML = '<i class="fa fa-map-marked-alt me-1"></i>View on Map';
+  } else {
+    mapContainer.style.display = 'block';
+    toggleBtn.innerHTML = '<i class="fa fa-list me-1"></i>Hide Map';
+
+    if (!infraMap) {
+      infraMap = L.map('infra-map-canvas').setView([20.5937, 78.9629], 5);
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a>',
+        maxZoom: 16
+      }).addTo(infraMap);
+
+      infraMarkers = L.layerGroup().addTo(infraMap);
+
+      fetch("{% url 'disaster_management:infrastructure_map_data' %}")
+        .then(r => r.json())
+        .then(data => {
+          if (data.assets && data.assets.length) {
+            const bounds = [];
+            data.assets.forEach(asset => {
+              const marker = L.circleMarker([asset.latitude, asset.longitude], {
+                color: '#17a2b8',
+                fillColor: '#17a2b8',
+                fillOpacity: 0.85,
+                radius: 7,
+                weight: 2
+              }).bindPopup(`<b>${asset.name}</b><br><span class="badge bg-info text-dark">${asset.category}</span><br>Capacity: ${asset.capacity || 'N/A'}`);
+              infraMarkers.addLayer(marker);
+              bounds.push([asset.latitude, asset.longitude]);
+            });
+            if (bounds.length) {
+              infraMap.fitBounds(bounds, { padding: [30, 30] });
+            }
+          }
+        });
+    } else {
+      setTimeout(() => infraMap.invalidateSize(), 200);
+    }
+  }
+});
+</script>
 {% endblock %}

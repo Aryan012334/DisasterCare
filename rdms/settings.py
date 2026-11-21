@@ -213,3 +213,5 @@ SECURE_REFERRER_POLICY = 'same-origin'
 # Upload safeguards.
 FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DJANGO_FILE_UPLOAD_MAX_MEMORY_SIZE', str(10 * 1024 * 1024)))
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE', str(30 * 1024 * 1024)))
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
